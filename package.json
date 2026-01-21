@@ -1,0 +1,27 @@
+{
+  "name": "server_chatbot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google/genai": "^1.21.0",
+    "axios": "^1.13.2",
+    "body-parser": "^2.2.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.2.1",
+    "express-basic-auth": "^1.2.1",
+    "groq-sdk": "^0.37.0",
+    "mysql2": "^3.16.0",
+    "qrcode-terminal": "^0.12.0",
+    "sqlite3": "^5.1.7",
+    "twilio": "^5.10.2",
+    "whatsapp-web.js": "^1.34.4"
+  }
+}

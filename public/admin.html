@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel Chatbot Perpustakaan UMB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Menggunakan font Inter */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f6f9;
+        }
+        /* Custom scrollbar */
+        textarea::-webkit-scrollbar, .overflow-y-auto::-webkit-scrollbar { width: 8px; }
+        textarea::-webkit-scrollbar-thumb, .overflow-y-auto::-webkit-scrollbar-thumb {
+            background-color: #3b82f6; border-radius: 4px;
+        }
+        .sidebar { background-color: #1f2937; box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1); }
+        .sidebar-link.active {
+            background-color: #374151; border-left: 4px solid #3b82f6;
+        }
+        .btn-primary:hover, .btn-danger:hover { opacity: 0.9; transform: translateY(-1px); }
+    </style>
+</head>
+<body class="flex h-screen">
+
+    <aside class="sidebar w-64 p-4 text-white flex flex-col">
+        <div class="text-xl font-bold mb-8 text-blue-400">ONLINE LIBRARY SYSTEM (UMB)</div>
+        <nav class="flex-grow">
+            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="dashboard">
+                Dashboard
+            </a>
+
+            <h2 class="text-xs uppercase text-gray-400 font-semibold mb-2 mt-4">MASTER DATA</h2>
+            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="system_commands">
+                System Commands (Menu Utama)
+            </a>
+            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700 active" data-category="flow_messages">
+                Pesan Alur & System
+            </a>
+            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="general_services">
+                Layanan Umum
+            </a>
+            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="member_services">
+                Layanan Anggota
+            </a>
+            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="academic_services">
+                Layanan Akademik
+            </a>
+        </nav>
+    </aside>
+
+    <main class="flex-1 p-8 overflow-auto">
+        
+        <header class="mb-6 flex justify-between items-center">
+            <h1 id="page-title" class="text-3xl font-extrabold text-gray-900">Dashboard Utama</h1>
+            <div class="flex space-x-3" id="action-buttons">
+                <button id="btn-add-new-key" class="hidden btn-primary flex items-center bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                    Tambah Keyword Baru
+                </button>
+                <button id="btn-save-all" class="hidden btn-primary bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
+                    Simpan Semua Perubahan
+                </button>
+            </div>
+        </header>
+
+        <div id="status-message" class="hidden mb-4 p-3 rounded-lg text-sm font-semibold"></div>
+
+        <div id="dashboard-container" class="hidden">
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex items-center">
+                    <div class="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">Total Pesan</h3>
+                        <p class="text-2xl font-bold text-gray-800" id="stat-total">0</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex items-center">
+                    <div class="p-3 rounded-full bg-indigo-100 text-indigo-600 mr-4">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">User Unik</h3>
+                        <p class="text-2xl font-bold text-gray-800" id="stat-users">0</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex items-center">
+                    <div class="p-3 rounded-full bg-green-100 text-green-600 mr-4">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">Hari Ini</h3>
+                        <p class="text-2xl font-bold text-gray-800" id="stat-today">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-8">
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">📈 Tren Aktivitas Chat (7 Hari Terakhir)</h3>
+                <div class="relative h-64 w-full">
+                    <canvas id="trafficChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">⏰ Jam Tersibuk (Peak Hours)</h3>
+                    <div class="relative h-64 w-full">
+                        <canvas id="peakHourChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4">📚 Status Koleksi Perpustakaan</h3>
+                    <div class="relative h-64 w-full flex justify-center">
+                        <canvas id="libraryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-700">🏆 Top 5 Pemustaka Teraktif</h3>
+                </div>
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Pengguna (WA)</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Chat</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="top-users-body" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+
+        </div>
+
+        <div id="table-container" class="bg-white p-6 rounded-xl shadow-xl hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-700" id="table-heading">Daftar Respons</h2>
+                <input type="text" id="search-input" placeholder="Cari Keyword..." class="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">No</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-3/12">Keyword / Kunci</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-6/12">Nilai Respons</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/12">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="response-table-body" class="bg-white divide-y divide-gray-200">
+                        <tr><td colspan="4" class="text-center py-4 text-gray-500">Memuat data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+    </main>
+
+    <div id="edit-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6">
+            <h2 id="modal-title" class="text-2xl font-bold mb-4 text-gray-800">Edit Respons</h2>
+            <div class="mb-4">
+                <label for="modal-key" class="block text-sm font-medium text-gray-700">Keyword / Kunci</label>
+                <input type="text" id="modal-key" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm focus:ring-blue-500 focus:border-blue-500" disabled>
+            </div>
+            <div class="mb-4">
+                <label for="modal-value" class="block text-sm font-medium text-gray-700">Nilai Respons</label>
+                <textarea id="modal-value" rows="10" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button id="modal-cancel" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Batal</button>
+                <button id="modal-save" class="btn-primary bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800">Tambah Keyword Baru</h2>
+            <div class="mb-4">
+                <label for="add-modal-key" class="block text-sm font-medium text-gray-700">Keyword Baru</label>
+                <input type="text" id="add-modal-key" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div class="mb-4">
+                <label for="add-modal-value" class="block text-sm font-medium text-gray-700">Nilai Respons</label>
+                <textarea id="add-modal-value" rows="5" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button id="add-modal-cancel" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Batal</button>
+                <button id="add-modal-save" class="btn-primary bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Tambah</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = "http://localhost:3001/admin/data";
+        let currentResponsesData = {};
+        let currentCategory = 'dashboard'; // Default awal Dashboard
+        let myChart = null; // Variabel Chart
+        let trafficChart = null;
+        let peakHourChart = null;
+        let libraryChart = null;
+
+        // --- UTILITIES ---
+        const displayStatus = (message, isSuccess = true) => {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = message;
+            statusDiv.className = `mb-4 p-3 rounded-lg text-sm font-semibold transition-all duration-300 ${isSuccess ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+            statusDiv.classList.remove('hidden');
+            setTimeout(() => statusDiv.classList.add('hidden'), 5000);
+        };
+
+        const fetchResponsesData = async () => {
+            try {
+                const response = await fetch(API_BASE_URL);
+                if (!response.ok) throw new Error("Gagal mengambil data.");
+                currentResponsesData = await response.json();
+                renderTable(currentCategory);
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                displayStatus("Gagal terhubung ke Server.", false);
+            }
+        };
+
+        // --- DASHBOARD LOGIC ---
+        const loadDashboard = async () => {
+            try {
+                const res = await fetch('http://localhost:3001/admin/stats/summary');
+                if (!res.ok) throw new Error("Gagal load stats");
+                const data = await res.json();
+
+                // 1. ISI KARTU STATISTIK
+                document.getElementById('stat-total').innerText = data.summary.total_chats;
+                document.getElementById('stat-users').innerText = data.summary.unique_users;
+                document.getElementById('stat-today').innerText = data.summary.today_chats;
+
+                // 2. RENDER CHART 1: TRAFFIC (LINE)
+                const ctxTraffic = document.getElementById('trafficChart').getContext('2d');
+                if (trafficChart) trafficChart.destroy();
+
+                trafficChart = new Chart(ctxTraffic, {
+                    type: 'line',
+                    data: {
+                        labels: data.charts.trend_7_days.map(i => i.date),
+                        datasets: [{
+                            label: 'Pesan Masuk',
+                            data: data.charts.trend_7_days.map(i => i.count),
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2, tension: 0.4, fill: true
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                });
+
+                // 3. RENDER CHART 2: PEAK HOURS (BAR)
+                const ctxPeak = document.getElementById('peakHourChart').getContext('2d');
+                if (peakHourChart) peakHourChart.destroy();
+                
+                // Siapkan array 24 jam (00-23) dengan nilai 0 default
+                const hours = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
+                const counts = new Array(24).fill(0);
+                
+                // Isi data dari database
+                data.charts.peak_hours.forEach(item => {
+                    const idx = parseInt(item.hour);
+                    if (idx >= 0 && idx < 24) counts[idx] = item.count;
+                });
+
+                peakHourChart = new Chart(ctxPeak, {
+                    type: 'bar',
+                    data: {
+                        labels: hours,
+                        datasets: [{
+                            label: 'Aktivitas per Jam',
+                            data: counts,
+                            backgroundColor: '#6366f1',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                });
+
+                // 4. RENDER CHART 3: LIBRARY COLLECTION (DOUGHNUT)
+                const ctxLib = document.getElementById('libraryChart').getContext('2d');
+                if (libraryChart) libraryChart.destroy();
+
+                const totalBooks = data.charts.library_composition.total_books || 0;
+                const borrowed = data.charts.library_composition.borrowed || 0;
+                const available = totalBooks - borrowed;
+
+                libraryChart = new Chart(ctxLib, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Tersedia di Rak', 'Sedang Dipinjam'],
+                        datasets: [{
+                            data: [available, borrowed],
+                            backgroundColor: ['#10b981', '#f59e0b'], // Hijau & Kuning
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: { 
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } }
+                    }
+                });
+
+                // 5. RENDER TABEL TOP USERS
+                const tbody = document.getElementById('top-users-body');
+                tbody.innerHTML = '';
+                
+                if (data.top_users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">Belum ada data</td></tr>';
+                } else {
+                    data.top_users.forEach((user, index) => {
+                        let badge = '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Aktif</span>';
+                        if (index === 0) badge = '<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">👑 Duta Baca</span>';
+                        
+                        // Samarkan nomor WA sedikit untuk privasi di demo (Opsional)
+                        // const maskedId = user.user_id.substring(0, 4) + 'xxxx' + user.user_id.substring(user.user_id.length - 4);
+                        const displayId = user.user_id.replace('@c.us', '');
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#${index + 1}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${displayId}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-bold">${user.total} Chat</td>
+                                <td class="px-6 py-4 whitespace-nowrap">${badge}</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+            } catch (error) {
+                console.error(error);
+                displayStatus("Gagal memuat data Dashboard Lengkap.", false);
+            }
+        };
+
+        // --- TABLE RENDER LOGIC ---
+        const createTableRow = (key, value, index) => {
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-gray-50';
+            row.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${index + 1}</td>
+                <td class="px-6 py-4 text-sm font-medium text-gray-900 break-words max-w-xs">${key}</td>
+                <td class="px-6 py-4 text-sm text-gray-700 break-words max-w-2xl overflow-y-auto max-h-40">${value.substring(0, 150)}...</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button data-key="${key}" class="btn-edit bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-lg text-xs">Edit</button>
+                    <button data-key="${key}" class="btn-delete bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-lg text-xs">Hapus</button>
+                </td>
+            `;
+            return row;
+        };
+
+        const renderTable = (category, searchTerm = '') => {
+            const tableBody = document.getElementById('response-table-body');
+            tableBody.innerHTML = '';
+            
+            const data = currentResponsesData[category] || {};
+            const keys = Object.keys(data).filter(key => 
+                key.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                data[key].toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            if (keys.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">Tidak ada data.</td></tr>`;
+                return;
+            }
+
+            keys.forEach((key, index) => {
+                const value = data[key];
+                tableBody.appendChild(createTableRow(key, value, index));
+            });
+
+            document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', handleEdit));
+            document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', handleDelete));
+        };
+
+        // --- HANDLERS ---
+        const handleCategoryChange = (event) => {
+            event.preventDefault();
+            const newCategory = event.currentTarget.getAttribute('data-category');
+            
+            document.querySelectorAll('.sidebar-link').forEach(link => link.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            document.getElementById('page-title').textContent = event.currentTarget.textContent.trim();
+            currentCategory = newCategory;
+
+            // TOGGLE VIEW (Dashboard vs Table)
+            const dashboardContainer = document.getElementById('dashboard-container');
+            const tableContainer = document.getElementById('table-container');
+            const btnAdd = document.getElementById('btn-add-new-key');
+            const btnSave = document.getElementById('btn-save-all');
+
+            if (newCategory === 'dashboard') {
+                dashboardContainer.classList.remove('hidden');
+                tableContainer.classList.add('hidden');
+                btnAdd.classList.add('hidden');
+                btnSave.classList.add('hidden');
+                loadDashboard();
+            } else {
+                dashboardContainer.classList.add('hidden');
+                tableContainer.classList.remove('hidden');
+                btnAdd.classList.remove('hidden');
+                btnSave.classList.remove('hidden');
+                fetchResponsesData();
+            }
+        };
+
+        const handleEdit = (event) => {
+            const key = event.target.getAttribute('data-key');
+            const value = currentResponsesData[currentCategory][key];
+            document.getElementById('modal-title').textContent = `Edit: ${key}`;
+            document.getElementById('modal-key').value = key;
+            document.getElementById('modal-value').value = value;
+            document.getElementById('edit-modal').classList.remove('hidden');
+            document.getElementById('edit-modal').classList.add('flex');
+        };
+
+        const handleDelete = async (event) => {
+            const key = event.target.getAttribute('data-key');
+            if (!confirm(`Hapus "${key}"?`)) return;
+
+            try {
+                const response = await fetch(API_BASE_URL + '/delete-key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category: currentCategory, key: key })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    displayStatus(result.message);
+                    fetchResponsesData();
+                } else throw new Error(result.message);
+            } catch (error) {
+                console.error(error);
+                displayStatus(error.message, false);
+            }
+        };
+
+        const handleModalSave = () => {
+            const key = document.getElementById('modal-key').value;
+            const val = document.getElementById('modal-value').value;
+            currentResponsesData[currentCategory][key] = val;
+            document.getElementById('edit-modal').classList.add('hidden');
+            document.getElementById('edit-modal').classList.remove('flex');
+            renderTable(currentCategory);
+            displayStatus("Perubahan lokal disimpan. Klik 'Simpan Semua' untuk permanen.");
+        };
+
+        const handleSaveAll = async () => {
+            const btn = document.getElementById('btn-save-all');
+            btn.textContent = 'Menyimpan...'; btn.disabled = true;
+            try {
+                const response = await fetch(API_BASE_URL + '/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentResponsesData)
+                });
+                const result = await response.json();
+                if (response.ok) displayStatus(result.message);
+                else throw new Error(result.message);
+            } catch (error) {
+                displayStatus(error.message, false);
+            } finally {
+                btn.textContent = 'Simpan Semua Perubahan'; btn.disabled = false;
+            }
+        };
+
+        const handleAddModalSave = async () => {
+            const key = document.getElementById('add-modal-key').value.trim();
+            const value = document.getElementById('add-modal-value').value.trim();
+            if (!key || !value) return displayStatus("Data tidak boleh kosong", false);
+
+            try {
+                const response = await fetch(API_BASE_URL + '/add-key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category: currentCategory, key, value })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    displayStatus(result.message);
+                    document.getElementById('add-modal').classList.add('hidden');
+                    document.getElementById('add-modal').classList.remove('flex');
+                    fetchResponsesData();
+                } else throw new Error(result.message);
+            } catch (error) {
+                displayStatus(error.message, false);
+            }
+        };
+
+        // --- INIT ---
+        window.onload = () => {
+            // Setup Listeners
+            document.querySelectorAll('.sidebar-link').forEach(link => link.addEventListener('click', handleCategoryChange));
+            document.getElementById('btn-save-all').addEventListener('click', handleSaveAll);
+            document.getElementById('btn-add-new-key').addEventListener('click', () => {
+                document.getElementById('add-modal-key').value = '';
+                document.getElementById('add-modal-value').value = '';
+                document.getElementById('add-modal').classList.remove('hidden');
+                document.getElementById('add-modal').classList.add('flex');
+            });
+            document.getElementById('modal-cancel').addEventListener('click', () => {
+                document.getElementById('edit-modal').classList.add('hidden');
+                document.getElementById('edit-modal').classList.remove('flex');
+            });
+            document.getElementById('modal-save').addEventListener('click', handleModalSave);
+            document.getElementById('add-modal-cancel').addEventListener('click', () => {
+                document.getElementById('add-modal').classList.add('hidden');
+                document.getElementById('add-modal').classList.remove('flex');
+            });
+            document.getElementById('add-modal-save').addEventListener('click', handleAddModalSave);
+            document.getElementById('search-input').addEventListener('keyup', (e) => renderTable(currentCategory, e.target.value));
+
+            // Default Load: Dashboard
+            document.querySelector('.sidebar-link[data-category="dashboard"]').click();
+        };
+    </script>
+</body>
+</html>
