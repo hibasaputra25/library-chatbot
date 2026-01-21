@@ -18,3 +18,13 @@ logs/
 # File sistem operasi (Sampah dari Mac/Windows)
 .DS_Store
 Thumbs.db
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Backups & Logs
+backups/
+logs/
+*.log
