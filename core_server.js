@@ -22,6 +22,12 @@ const axios = require('axios'); // Tambahkan ini di baris atas
 const basicAuth = require('express-basic-auth');
 const path = require('path'); // Bawaan node.js, biar path folder aman
 
+// HUMAN MODE
+// Konfigurasi Admin & Gateway
+const WA_GATEWAY_URL = 'http://127.0.0.1:3002/send-direct';
+// Ganti dengan nomor Anda yang dipakai untuk scan bot (format @c.us)
+const ADMIN_NUMBER = process.env.ADMIN_WA_NUMBER;
+
 // IMPORT GEMINI
 // const { GoogleGenAI } = require("@google/genai");
 
@@ -29,10 +35,53 @@ const path = require('path'); // Bawaan node.js, biar path folder aman
 const Groq = require("groq-sdk");
 
 const dbService = require('./db_service');
+const { db, run, get, all, getLinkedUser, saveLinkedUser } = require('./analytics_db'); // <--- PASTIKAN ADA INI
 const analyticsDb = require('./analytics_db');
 
 const app = express();
 const port = 3001;
+
+// =======================================================
+// DB SQLITE: FUNGSI HUMAN MODE (CHAT PUSTAKAWAN)
+// =======================================================
+
+// 1. Buat tabel otomatis saat server menyala
+analyticsDb.run(`
+    CREATE TABLE IF NOT EXISTS user_status (
+        phone_number TEXT PRIMARY KEY,
+        mode TEXT DEFAULT 'bot'
+    )
+`).catch(err => console.log("Info DB user_status:", err.message));
+
+// Menambahkan kolom baru ke tabel chat_logs secara otomatis jika belum ada
+analyticsDb.run("ALTER TABLE chat_logs ADD COLUMN message_in TEXT").catch(err => {});
+analyticsDb.run("ALTER TABLE chat_logs ADD COLUMN message_out TEXT").catch(err => {});
+analyticsDb.run("ALTER TABLE chat_logs ADD COLUMN context TEXT").catch(err => {});
+
+// 2. Fungsi untuk mengambil status user
+async function getUserMode(phoneNumber) {
+    try {
+        const row = await analyticsDb.get(`SELECT mode FROM user_status WHERE phone_number = ?`, [phoneNumber]);
+        return row ? row.mode : 'bot';
+    } catch (err) {
+        console.error("Error getUserMode:", err.message);
+        return 'bot';
+    }
+}
+
+// 3. Fungsi untuk mengubah status user
+async function setUserMode(phoneNumber, mode) {
+    try {
+        // Menggunakan REPLACE INTO agar jika nomor sudah ada, datanya langsung di-update
+        await analyticsDb.run(`
+            REPLACE INTO user_status (phone_number, mode) 
+            VALUES (?, ?)
+        `, [phoneNumber, mode]);
+    } catch (err) {
+        console.error("Error setUserMode:", err.message);
+    }
+}
+// =======================================================
 
 // Izinkan pesan JSON hingga 1MB (default cuma 100kb)
 app.use(express.json({ limit: '1mb' }));
@@ -111,6 +160,49 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // File path ke data respons
 const RESPONSES_FILE_PATH = "./responses.json";
+
+// =========================================================
+// VARIABEL GLOBAL UNTUK ACTIVE TIMER HUMAN MODE
+// =========================================================
+const humanModeTimers = {};
+const HUMAN_MODE_TIMEOUT = 5 * 60 * 1000; // 10 Detik untuk testing (Ubah ke 5 * 60 * 1000 nanti)
+
+// Fungsi untuk memulai atau mereset timer aktif
+function startActiveHumanTimer(fromWaId) {
+    // 1. Bersihkan timer lama jika ada (Reset)
+    if (humanModeTimers[fromWaId]) {
+        clearTimeout(humanModeTimers[fromWaId]);
+    }
+
+    // 2. Mulai hitung mundur baru
+    humanModeTimers[fromWaId] = setTimeout(async () => {
+        console.log(`[TIMEOUT AKTIF] Waktu habis untuk ${fromWaId}, mengembalikan ke Bot.`);
+        
+        try {
+            // A. Kembalikan state ke Bot di database
+            await setUserMode(fromWaId, 'bot');
+            
+            // B. PROAKTIF: Suruh Gateway mengirim pesan otomatis ke user
+            await axios.post(WA_GATEWAY_URL, {
+                to: fromWaId,
+                message: "⚠️ *Sesi Operator Berakhir*\nKarena tidak ada aktivitas dari operator, sesi ini ditutup otomatis.\n\nKetik *Menu* untuk memanggil bot."
+            });
+        } catch (err) {
+            console.error("Gagal mengeksekusi Active Timeout:", err.message);
+        }
+        
+        // Hapus jejak timer dari memori
+        delete humanModeTimers[fromWaId];
+    }, HUMAN_MODE_TIMEOUT);
+}
+
+// Fungsi untuk menghentikan timer secara manual (jika user ketik !bot)
+function stopActiveHumanTimer(fromWaId) {
+    if (humanModeTimers[fromWaId]) {
+        clearTimeout(humanModeTimers[fromWaId]);
+        delete humanModeTimers[fromWaId];
+    }
+}
 
 // =======================================================
 // FUNGSI UTILITY & DATA HANDLING
@@ -217,14 +309,31 @@ const createBackup = () => {
     }
 };
 
-const logInteraction = async (userId) => {
+const logInteraction = async (userId, msgIn, msgOut, context) => {
     try {
-        // Simpan ke SQLite Lokal
-        // Pastikan tabel chat_logs sudah dibuat otomatis oleh analytics_db.js
-        await analyticsDb.run("INSERT INTO chat_logs (user_id) VALUES (?)", [userId]);
+        // Simpan pesan masuk, pesan keluar, dan konteks layanannya
+        await analyticsDb.run(
+            "INSERT INTO chat_logs (user_id, message_in, message_out, context) VALUES (?, ?, ?, ?)", 
+            [userId, msgIn, msgOut, context]
+        );
     } catch (error) {
         console.error("Gagal mencatat log analytics:", error);
     }
+};
+
+// Fungsi pembantu untuk menentukan konteks berdasarkan input user
+const determineContext = (text) => {
+    const menuMap = {
+        '1': 'Pencarian Buku',
+        '2': 'Cek Pinjaman Buku',
+        '3': 'Informasi Tata Tertib',
+        '4': 'SKBP',
+        '5': 'Informasi Tugas Akhir',
+        '6': 'Koleksi Digital',
+        '7': 'Uji Similarity (Turnitin)',
+        '8': 'Chat Pustakawan'
+    };
+    return menuMap[text.trim()] || 'General Chat / AI';
 };
 
 let responsesData = readResponsesData(); // Muat data saat startup
@@ -505,10 +614,8 @@ async function handleMemberCheck(nim, userSession) {
 // =======================================================
 // LOGIKA UTAMA CHATBOT (CREATE RESPONSE)
 // =======================================================
-const createResponse = async (message, from, userName) => {
-
-    // 1. CATAT LOG KE SQLITE (Jalankan tanpa await agar tidak memperlambat balasan)
-    logInteraction(from);
+const createResponse = async (message, from, userName, finalNumber) => {
+    const normalizedMessage = message.toLowerCase().trim();
     
     const currentTime = Date.now();
 
@@ -571,39 +678,163 @@ const createResponse = async (message, from, userName) => {
             reply_message: `⚠️ *Pesan Terlalu Panjang*\n\nPesan Anda mengandung ${message.length} karakter (Batas: ${RULES.MAX_CHAR}).\nMohon persingkat pertanyaan Anda agar bisa diproses.` 
         };
     }
-    
-    const normalizedMessage = normalize(message);
 
     // =======================================================
     // LOGIKA SESI TERINTEGRASI (UNIFIED SESSION)
     // =======================================================
     
-    let isNewSession = false;
+    let isNewSession = false; //
 
-    // 1. Cek apakah data sesi user ada?
-    // Jika !sessionHistory[from] (KOSONG), berarti:
-    //    a. User baru pertama kali chat.
-    //    b. ATAU User lama yang datanya sudah DIHAPUS oleh Timer (Satpam) karena diam > 1 menit.
     if (!sessionHistory[from]) {
-        sessionHistory[from] = { last_time: currentTime, state: "main_menu" };
-        isNewSession = true; // Tandai ini sebagai sesi baru
+        sessionHistory[from] = { last_time: currentTime, state: null }; 
+        isNewSession = true; // Tandai bahwa ini adalah awal percakapan
     }
-
-    let userSession = sessionHistory[from]; 
-    
-    // 2. Update waktu terakhir chat (PENTING!)
-    // Ini agar Timer tahu user ini aktif lagi, jadi jangan dihapus dulu.
+    const userSession = sessionHistory[from]; 
     userSession.last_time = currentTime;
+
+    // =========================================================
+    // 3. GERBANG PENDAFTARAN (OPTIMISTIC ONBOARDING)
+    // =========================================================
+    const linkedUser = await getLinkedUser(finalNumber);
+
+    let rawName = userName;
+    if (rawName && rawName.startsWith('+')) rawName = "Pemustaka";
+    let fallbackName = sanitizeName ? sanitizeName(rawName) : rawName; 
+
+    const displayName = linkedUser ? linkedUser.nama : fallbackName;
+
+    if (!linkedUser) {
+        // A. Sapaan Awal & Pilih Peran 
+        if (!userSession.state) {
+            userSession.state = "waiting_for_role";
+            return {
+                reply_message: `Halo *${displayName}*, selamat datang di PustakaBot! 👋\n\nUntuk menyesuaikan layanan, silakan pilih peran Anda dengan membalas angka:\n\n*1.* Mahasiswa\n*2.* Dosen / Tendik\n*3.* Tamu / Umum`
+            };
+        }
+
+        // B. Evaluasi Pilihan Peran
+        if (userSession.state === "waiting_for_role") {
+            const inputRole = message.trim();
+            if (inputRole === '1') {
+                userSession.state = "waiting_for_nim";
+                return { reply_message: "Silakan ketik *NIM* (Nomor Induk Mahasiswa) Anda untuk verifikasi:" };
+            } else if (inputRole === '2') {
+                userSession.state = "waiting_for_nidn";
+                return { reply_message: "Silakan ketik *NIDN / NIP / NIK* Kampus Anda:" };
+            } else if (inputRole === '3') {
+                userSession.state = "waiting_for_guest_name";
+                return { reply_message: "Baik, silakan ketik *Nama Lengkap* Anda:" };
+            } else {
+                return { reply_message: "⚠️ Pilihan tidak valid. Silakan balas dengan angka *1*, *2*, atau *3*." };
+            }
+        }
+
+        // C. Alur MAHASISWA (Wajib ada di MySQL)
+        if (userSession.state === "waiting_for_nim") {
+            const inputNim = message.trim();
+            const cekDb = await dbService.getAnggotaByNim(inputNim);
+
+            if (cekDb) {
+                userSession.temp_id = cekDb.No_Anggota;
+                userSession.temp_nama = cekDb.Nama;
+                userSession.temp_role = "mahasiswa";
+                userSession.state = "waiting_for_confirmation";
+                return { reply_message: `Ditemukan data mahasiswa:\n\n*Nama:* ${cekDb.Nama}\n*NIM:* ${cekDb.No_Anggota}\n\nApakah data ini benar? Ketik *YA* atau *TIDAK*.` };
+            } else {
+                return { reply_message: `⚠️ Maaf, NIM *${inputNim}* tidak ditemukan di database.\n\nSilakan periksa kembali dan ketik ulang NIM Anda. (Atau ketik *BATAL* untuk kembali ke pilihan peran)` };
+            }
+        }
+
+        // D. Alur DOSEN/TENDIK (Cek MySQL, jika tidak ada -> PENDING)
+        if (userSession.state === "waiting_for_nidn") {
+            const inputNidn = message.trim();
+            const cekDb = await dbService.getAnggotaByNim(inputNidn); 
+
+            if (cekDb) {
+                userSession.temp_id = cekDb.No_Anggota;
+                userSession.temp_nama = cekDb.Nama;
+                userSession.temp_role = "dosen";
+                userSession.state = "waiting_for_confirmation";
+                return { reply_message: `Ditemukan data Dosen/Tendik:\n\n*Nama:* ${cekDb.Nama}\n*NIDN/NIP/NIK:* ${cekDb.No_Anggota}\n\nApakah data ini benar? Ketik *YA* atau *TIDAK*.` };
+            } else {
+                userSession.temp_id = inputNidn;
+                userSession.state = "waiting_for_dosen_manual_name";
+                return { reply_message: `Data NIDN/NIP *${inputNidn}* belum tersinkronisasi di database utama kami.\n\nNamun Anda tetap bisa melanjutkan. Silakan ketik *Nama Lengkap* Anda:` };
+            }
+        }
+
+        // D-2. Lanjutan Dosen Manual (PENDING)
+        if (userSession.state === "waiting_for_dosen_manual_name") {
+            const inputName = message.trim();
+            await saveLinkedUser(finalNumber, userSession.temp_id, inputName, "dosen", "PENDING");
+            userSession.state = "main_menu";
+            delete userSession.temp_id;
+            return {
+                reply_message: [
+                    `✅ Selamat datang, Bapak/Ibu *${inputName}*.\n\n_Catatan: Akun Anda dalam status peninjauan (Pending) oleh Admin untuk disinkronkan. Namun Anda sudah bisa menggunakan layanan bot._`,
+                    responsesData.system_commands.menu
+                ]
+            };
+        }
+
+        // E. Alur TAMU UMUM
+        if (userSession.state === "waiting_for_guest_name") {
+            const guestName = message.trim();
+            const guestId = `GUEST_${finalNumber}`; 
+            await saveLinkedUser(finalNumber, guestId, guestName, "tamu", "GUEST_ONLY");
+            userSession.state = "main_menu";
+            return {
+                reply_message: [
+                    `✅ Selamat datang, *${guestName}*! Anda mengakses layanan sebagai Tamu.`,
+                    responsesData.system_commands.menu
+                ]
+            };
+        }
+
+        // F. Konfirmasi Validasi (Untuk Mahasiswa & Dosen yg ada di MySQL)
+        if (userSession.state === "waiting_for_confirmation") {
+            const jawaban = normalizedMessage;
+            if (jawaban === 'ya') {
+                await saveLinkedUser(finalNumber, userSession.temp_id, userSession.temp_nama, userSession.temp_role, "VERIFIED");
+                const namaUser = userSession.temp_nama;
+                
+                userSession.state = "main_menu";
+                delete userSession.temp_id;
+                delete userSession.temp_nama;
+                delete userSession.temp_role;
+
+                // Setelah beres, tampilkan ucapan berhasil + menu
+                return {
+                    reply_message: [
+                        `✅ *Verifikasi Berhasil!*\n\nNomor WA Anda telah terhubung dengan data atas nama *${namaUser}*.`,
+                        responsesData.system_commands.menu
+                    ]
+                };
+            } else if (jawaban === 'batal') {
+                userSession.state = "waiting_for_role";
+                return { reply_message: "Proses dibatalkan. Silakan pilih peran:\n1. Mahasiswa\n2. Dosen/Tendik\n3. Tamu/Umum" };
+            } else {
+                const prevState = userSession.temp_role === "mahasiswa" ? "waiting_for_nim" : "waiting_for_nidn";
+                userSession.state = prevState;
+                delete userSession.temp_id;
+                delete userSession.temp_nama;
+                delete userSession.temp_role;
+                return { reply_message: "Silakan ketik ulang NIM / NIDN Anda yang benar:" };
+            }
+        }
+
+        if (normalizedMessage === 'batal') {
+            userSession.state = "waiting_for_role";
+            return { reply_message: "Pendaftaran diulang. Silakan pilih peran:\n1. Mahasiswa\n2. Dosen/Tendik\n3. Tamu/Umum" };
+        }
+
+        return { reply_message: "Silakan selesaikan proses pendaftaran terlebih dahulu, atau ketik *BATAL* untuk mengulang." }; 
+    }
 
     // --- LOGIKA TAMPILAN MENU & GREETING ---
 
     // SKENARIO A: SESI BENAR-BENAR BARU (Pertama kali chat / setelah timeout)
     if (isNewSession) {
-        // --- AMBIL NAMA & BERSIHKAN (SECURE) ---
-        let rawName = userName;
-        if (rawName && rawName.startsWith('+')) rawName = "Pemustaka";
-        let displayName = sanitizeName(rawName);
-
         userSession.state = "main_menu";
 
         const greetings = `Halo *${displayName}*! `;
@@ -645,7 +876,11 @@ const createResponse = async (message, from, userName) => {
             
             // Jika Helper mengembalikan balasan (baik sukses atau error validasi)
             if (searchResult.reply_message) {
-                return { reply_message: searchResult.reply_message };
+                return { 
+                    reply_message: searchResult.reply_message,
+                    context: "Hasil Pencarian Buku By Judul" // <-- SPESIFIK PENCARIAN BUKU BY JUDUL  
+                };
+
             }
 
             // Jika Helper bilang "found: false" (Tidak ketemu di DB)
@@ -666,7 +901,10 @@ const createResponse = async (message, from, userName) => {
             const searchResult = await handleAuthorSearch(keyword, userSession);
 
             if (searchResult.reply_message) {
-                return { reply_message: searchResult.reply_message };
+                return { 
+                    reply_message: searchResult.reply_message,
+                    context: "Hasil Pencarian Buku By Pengarang" // <-- SPESIFIK PENCARIAN BUKU BY PENGARANG 
+                };
             }
 
             if (!searchResult.found) {
@@ -791,7 +1029,10 @@ const createResponse = async (message, from, userName) => {
                 }
 
                 reply += `\n\nKetik *MENU* untuk layanan lain.`;
-                return { reply_message: reply };
+                return { 
+                    reply_message: reply,
+                    context: "Detail info Buku" // <-- SPESIFIK DETAIL BUKU
+                };
 
             }
             // ============================================================
@@ -844,7 +1085,10 @@ const createResponse = async (message, from, userName) => {
                 reply += `Silakan ketik *ID BUKU* (misal: ${limitTampil[0].ID_Buku}) untuk melihat detail & stok.\n`;
                 reply += `Atau ketik kata kunci lain untuk mencari ulang.`;
 
-                return { reply_message: reply };
+                return { 
+                    reply_message: reply,
+                    context: "Pencarian Buku" // <-- SPESIFIK PENCARIAN BUKU
+                };
             }
 
             // --- SKENARIO D: GAGAL SEMUA ---
@@ -853,14 +1097,16 @@ const createResponse = async (message, from, userName) => {
             // Cek apakah gagal karena validasi panjang karakter?
             if (inputUser.length < 3) {
                 return { 
-                    reply_message: `⚠️ Input *"${inputUser}"* terlalu pendek.\nHarap masukkan minimal 3 huruf untuk mencari Judul atau Pengarang.` 
+                    reply_message: `⚠️ Input *"${inputUser}"* terlalu pendek.\nHarap masukkan minimal 3 huruf untuk mencari Judul atau Pengarang.` ,
+                    context: "Pencarian Buku" // <-- SPESIFIK PENCARIAN BUKU
                 };
             }
 
             return {
                 reply_message: `⚠️ *Tidak Ditemukan*\n` +
                             `Input *"${inputUser}"* tidak valid sebagai ID Buku, Judul Buku maupun Pengarang.\n\n` +
-                            `Silakan masukkan ID yang benar atau Judul buku yang lain.`
+                            `Silakan masukkan ID yang benar atau Judul buku yang lain.`,
+                context: "Pencarian Buku" // <-- SPESIFIK PENCARIAN BUKU
             };
         }
         
@@ -964,7 +1210,7 @@ const createResponse = async (message, from, userName) => {
 
     const systemContext = `
     PERAN:
-    Anda adalah "PustakaBot", asisten virtual Perpustakaan Universitas Mercu Buana (UMB).
+    Anda adalah "PustakaBot", asisten virtual Perpustakaan Universitas Mercu Buana.
     Tugas Anda adalah memahami pertanyaan user dan MENGARAHKAN mereka ke NOMOR MENU yang tepat.
     Jangan menjawab detail panjang lebar jika informasi tersebut sudah tersedia di menu statis.
 
@@ -990,7 +1236,7 @@ const createResponse = async (message, from, userName) => {
     
     Menu "6" (E-Resources & Jurnal Online):
        - Gunakan jika user bertanya: "Cara akses jurnal", "Password Emerald/IEEE", "Cari referensi online", "E-book ProQuest".
-       - Mencakup akses ke GALE, Emerald, IEEE, ProQuest, EBSCO, dan Repository UMB.
+       - Mencakup akses ke GALE, Emerald, IEEE, ProQuest, EBSCO, dan Repository Universitas Mercu Buana.
 
     Menu "7" (Layanan Cek Similarity (Turnitin) Tugas Akhir):
        - Gunakan jika user bertanya: "cek turnitin", "similarity", "turnitin studio", "turnitin draft coach", "plagiarisme".
@@ -1072,6 +1318,38 @@ const createResponse = async (message, from, userName) => {
     }
 };
 
+// ===================================================================
+// FUNGSI ANALISIS KONTEKS HUMAN MODE DENGAN AI (GROQ)
+// ===================================================================
+async function analyzeContextWithAI(text) {
+    try {
+        // Asumsi Anda sudah inisialisasi objek groq di file ini
+        // const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+        
+        const completion = await groq.chat.completions.create({
+            messages: [
+                {
+                    role: "system",
+                    content: "Kamu adalah asisten analis perpustakaan. Tugasmu HANYA mengkategorikan pesan user ke dalam SALAH SATU dari kategori berikut: [Tanya Denda, Info Buku, Fasilitas Kampus, Jam Operasional, Komplain, Kendala Teknis, Lainnya]. Dilarang memberikan penjelasan, cukup balas dengan SATU NAMA KATEGORI yang paling cocok."
+                },
+                {
+                    role: "user",
+                    content: text
+                }
+            ],
+            model: "llama-3.3-70b-versatile", // Gunakan model Groq yang ringan dan cepat
+            temperature: 0.1, // Suhu rendah agar AI konsisten dan tidak bertele-tele
+            max_tokens: 10
+        });
+
+        // Ambil hasil tebakan AI, hilangkan spasi berlebih
+        return completion.choices[0].message.content.trim();
+    } catch (error) {
+        console.error("Gagal menganalisis konteks AI:", error.message);
+        return "Uncategorized"; // Fallback jika AI sedang down
+    }
+}
+
 // =======================================================
 // BACKGROUND JOB: CEK SESSION TIMEOUT
 // =======================================================
@@ -1106,7 +1384,32 @@ setInterval(async () => {
             // sessionHistory[userId] = { last_time: 0, state: "main_menu" };
         }
     }
-}, 1000); // Jalankan setiap 60 detik (1 menit)
+
+    // --- PEMBERSIHAN MEMORY LEAK ---
+
+    // 1. Bersihkan spamFilter: hapus entry yang sudah tidak aktif lebih dari 1 menit
+    //    (spamFilter hanya menyimpan timestamp terakhir kirim pesan)
+    const SPAM_EXPIRY = 60 * 1000; // 1 menit
+    for (const userId in spamFilter) {
+        if (currentTime - spamFilter[userId] > SPAM_EXPIRY) {
+            delete spamFilter[userId];
+        }
+    }
+
+    // 2. Bersihkan userMonitor: hapus entry yang sudah tidak aktif lebih dari 1 jam
+    //    dan tidak sedang dalam status banned
+    const MONITOR_EXPIRY = 60 * 60 * 1000; // 1 jam
+    for (const userId in userMonitor) {
+        const userData = userMonitor[userId];
+        const isInactive = currentTime - userData.windowStart > MONITOR_EXPIRY;
+        const isNotBanned = userData.banUntil < currentTime;
+
+        if (isInactive && isNotBanned) {
+            delete userMonitor[userId];
+        }
+    }
+
+}, 60 * 1000); // Jalankan setiap 60 detik (1 menit)
 
 // =======================================================
 // ROUTES API
@@ -1114,12 +1417,78 @@ setInterval(async () => {
 
 app.post("/process-message", async (req, res) => {
     try {
-        const { from, text, userName } = req.body;
-        
-        // Panggil logika utama bot
-        const response = await createResponse(text, from, userName);
+        const { from, text, userName, realNumber } = req.body;
+        const finalNumber = realNumber || from.split('@')[0];
+        const cleanText = text.toLowerCase().trim();
 
-        // --- PERBAIKAN DI SINI ---
+        // =========================================================
+        // 1. PENJAGA GERBANG: FITUR HUMAN MODE / CHAT PUSTAKAWAN
+        // =========================================================
+        
+        // Cek status user dari database SQLite
+        const currentMode = await getUserMode(from);
+
+        // A. Perintah Admin untuk mengakhiri sesi obrolan manual
+        if (cleanText === '!bot') {
+            await setUserMode(from, 'bot');
+            return res.json({ reply: "🤖 *Sistem:* Mode Pustakawan diakhiri. Bot aktif kembali.\nKetik *Menu* untuk melihat layanan." });
+        }
+
+        // B. Jika user SEDANG dalam mode Human, Bot DIAM (cegat pesan disini)
+        if (currentMode === 'human') {
+
+            console.log(`[SILENT MODE] Pesan dari ${userName} diabaikan (Sedang obrolan manual).`);
+
+            // ==========================================================
+            // SISIPKAN PENCATATAN AI DI SINI (Background Process)
+            // ==========================================================
+            setTimeout(async () => {
+                try {
+                    // 1. Minta AI menebak konteks percakapan
+                    const aiContext = await analyzeContextWithAI(text);
+                    const finalContext = `Human Mode: ${aiContext}`;
+                    
+                    // 2. Simpan ke database SQLite
+                    logInteraction(finalNumber, text, "Diteruskan ke Admin", finalContext);
+                } catch (err) {
+                    console.error("Gagal log Human Mode:", err);
+                }
+            }, 50);
+            // ==========================================================
+
+            return res.status(200).json({}); // Return kosong agar Gateway diam
+        }
+
+        // C. Jika user MEMINTA obrolan manual untuk pertama kali
+        if (cleanText === '8' || cleanText === 'admin' || cleanText === 'bantuan admin') {
+            await setUserMode(from, 'human');
+
+            // Kirim notifikasi "Alert" ke HP Admin
+            try {
+                const userNumberOnly = from.replace('@c.us', '');
+                const alertMsg = `🚨 *ALERT PUSTAKAWAN*\n\n` +
+                                 `Mahasiswa bernama *${userName}* meminta obrolan manual.\n` +
+                                 `Nomor WA: wa.me/${finalNumber}\n\n` +
+                                 `_Balas pesan beliau manual. Jika masalah sudah selesai, ketik *!bot* di chat mahasiswa tersebut._`;
+
+                await axios.post(WA_GATEWAY_URL, {
+                    to: ADMIN_NUMBER,
+                    message: alertMsg
+                });
+            } catch (err) {
+                console.error("[ERROR] Gagal mengirim alert ke admin:", err.message);
+            }
+
+            // Balasan bot ke Mahasiswa
+            return res.json({ 
+                reply: "👨‍💻 *Menghubungkan ke Pustakawan...*\n\nMohon tunggu sebentar, pesan Anda akan segera dibalas oleh staf kami secara manual.\n_(Sistem Bot dinonaktifkan sementara)_" 
+            });
+        }
+        
+        // =========================================================
+        // 2. PANGGIL LOGIKA UTAMA BOT (Jika status masih 'bot')
+        // =========================================================
+        const response = await createResponse(text, from, userName, finalNumber);
         
         // Cek 1: Jika response NULL (berarti kena Spam Filter), jangan lakukan apa-apa
         if (!response) {
@@ -1128,12 +1497,27 @@ app.post("/process-message", async (req, res) => {
             return res.status(200).json({}); 
         }
 
-        // Cek 2: Jika response ada isinya, baru kirim reply_message
-        res.json({ 
+        // =========================================================
+        // 3. CATAT LOG HISTORY KE DATABASE LENGKAP DENGAN KONTEKS
+        // =========================================================
+        // Kita tangkap pertanyaan (text) dan jawaban bot (response.reply_message)
+        res.json({
             reply: response.reply_message,
-            // Jika ada opsi tambahan (seperti linkPreview)
-            options: response.options 
+            options: { ...response.options, linkPreview: false }
         });
+
+        // 2. JALANKAN PENCATATAN DI LATAR BELAKANG (Delay 50ms agar tidak mengganggu pengiriman WA)
+        setTimeout(() => {
+            try {
+                // KITA AMBIL KONTEKS DARI RESPONSE BOT TERLEBIH DAHULU
+                const context = response.context || determineContext(text);
+                
+                const replyText = Array.isArray(response.reply_message) ? response.reply_message.join(" | ") : response.reply_message;
+                logInteraction(finalNumber, text, replyText, context);
+            } catch (err) {
+                console.error("Gagal log background:", err);
+            }
+        }, 50);
 
     } catch (error) {
         console.error("Error processing message:", error);
@@ -1266,6 +1650,42 @@ app.get("/admin/stats/summary", authMiddleware, async (req, res) => {
     } catch (error) {
         console.error("Gagal ambil stats:", error);
         res.status(500).json({ error: "Server Error" });
+    }
+});
+
+// =========================================================
+// ENDPOINT: SINKRONISASI BALASAN MANUAL DARI HP ADMIN
+// =========================================================
+app.post("/api/admin-sync", async (req, res) => { // Tambahkan async
+    const { targetNumber } = req.body;
+
+    try {
+        // PERBAIKAN UTAMA: Cek mode user dulu
+        const currentMode = await getUserMode(targetNumber);
+        
+        // Timer HANYA boleh di-reset jika user sedang dalam mode human
+        if (targetNumber && currentMode === 'human') {
+            startActiveHumanTimer(targetNumber);
+            console.log(`[TIMER RESET] Admin membalas via HP. Timer aktif untuk ${targetNumber} di-reset ke 0.`);
+        }
+    } catch (err) {
+        console.error("Gagal memproses admin-sync:", err.message);
+    }
+
+    res.status(200).json({ status: "ok" });
+});
+
+app.get("/api/chat-history", async (req, res) => {
+    try {
+        const rows = await analyticsDb.all(`
+            SELECT user_id, message_in, message_out, context, timestamp 
+            FROM chat_logs 
+            ORDER BY timestamp DESC 
+            LIMIT 100
+        `);
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 

@@ -7,52 +7,40 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        /* Menggunakan font Inter */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f6f9;
-        }
-        /* Custom scrollbar */
+        body { font-family: 'Inter', sans-serif; background-color: #f4f6f9; }
         textarea::-webkit-scrollbar, .overflow-y-auto::-webkit-scrollbar { width: 8px; }
-        textarea::-webkit-scrollbar-thumb, .overflow-y-auto::-webkit-scrollbar-thumb {
-            background-color: #3b82f6; border-radius: 4px;
-        }
+        textarea::-webkit-scrollbar-thumb, .overflow-y-auto::-webkit-scrollbar-thumb { background-color: #3b82f6; border-radius: 4px; }
         .sidebar { background-color: #1f2937; box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1); }
-        .sidebar-link.active {
-            background-color: #374151; border-left: 4px solid #3b82f6;
-        }
+        .sidebar-link.active { background-color: #374151; border-left: 4px solid #3b82f6; }
         .btn-primary:hover, .btn-danger:hover { opacity: 0.9; transform: translateY(-1px); }
     </style>
 </head>
 <body class="flex h-screen">
 
-    <aside class="sidebar w-64 p-4 text-white flex flex-col">
+    <aside class="sidebar w-64 p-4 text-white flex flex-col z-10 relative">
         <div class="text-xl font-bold mb-8 text-blue-400">ONLINE LIBRARY SYSTEM (UMB)</div>
         <nav class="flex-grow">
             <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="dashboard">
                 Dashboard
+            </a>
+            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="history">
+                Riwayat Chat Detail
             </a>
 
             <h2 class="text-xs uppercase text-gray-400 font-semibold mb-2 mt-4">MASTER DATA</h2>
             <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="system_commands">
                 System Commands (Menu Utama)
             </a>
-            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700 active" data-category="flow_messages">
+            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="flow_messages">
                 Pesan Alur & System
             </a>
             <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="general_services">
                 Layanan Umum
             </a>
-            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="member_services">
-                Layanan Anggota
-            </a>
-            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="academic_services">
-                Layanan Akademik
-            </a>
         </nav>
     </aside>
 
-    <main class="flex-1 p-8 overflow-auto">
+    <div class="flex-1 p-8 overflow-auto relative">
         
         <header class="mb-6 flex justify-between items-center">
             <h1 id="page-title" class="text-3xl font-extrabold text-gray-900">Dashboard Utama</h1>
@@ -69,8 +57,7 @@
 
         <div id="status-message" class="hidden mb-4 p-3 rounded-lg text-sm font-semibold"></div>
 
-        <div id="dashboard-container" class="hidden">
-            
+        <main id="main-dashboard" class="hidden">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex items-center">
                     <div class="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
@@ -115,7 +102,6 @@
                         <canvas id="peakHourChart"></canvas>
                     </div>
                 </div>
-
                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                     <h3 class="text-lg font-semibold text-gray-700 mb-4">📚 Status Koleksi Perpustakaan</h3>
                     <div class="relative h-64 w-full flex justify-center">
@@ -137,19 +123,47 @@
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                         </tr>
                     </thead>
-                    <tbody id="top-users-body" class="bg-white divide-y divide-gray-200">
-                        </tbody>
+                    <tbody id="top-users-body" class="bg-white divide-y divide-gray-200"></tbody>
                 </table>
             </div>
+        </main>
 
-        </div>
+        <main id="main-history" class="hidden">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800">Log Percakapan Mahasiswa</h2>
+                        <p class="text-sm text-gray-500">Daftar pesan masuk dan balasan chatbot secara real-time</p>
+                    </div>
+                    <button onclick="fetchChatHistory()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        Refresh Data
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nomor WA</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Konteks</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pesan Masuk</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balasan Bot</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body" class="bg-white divide-y divide-gray-200 text-sm">
+                            <tr><td colspan="5" class="px-6 py-10 text-center text-gray-500 italic">Memuat data riwayat...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
 
-        <div id="table-container" class="bg-white p-6 rounded-xl shadow-xl hidden">
+        <main id="main-editor" class="bg-white p-6 rounded-xl shadow-xl hidden">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-semibold text-gray-700" id="table-heading">Daftar Respons</h2>
                 <input type="text" id="search-input" placeholder="Cari Keyword..." class="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
             </div>
-            
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -165,20 +179,20 @@
                     </tbody>
                 </table>
             </div>
-        </div>
+        </main>
         
-    </main>
+    </div>
 
     <div id="edit-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center p-4 z-50">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6">
             <h2 id="modal-title" class="text-2xl font-bold mb-4 text-gray-800">Edit Respons</h2>
             <div class="mb-4">
                 <label for="modal-key" class="block text-sm font-medium text-gray-700">Keyword / Kunci</label>
-                <input type="text" id="modal-key" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm focus:ring-blue-500 focus:border-blue-500" disabled>
+                <input type="text" id="modal-key" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm" disabled>
             </div>
             <div class="mb-4">
                 <label for="modal-value" class="block text-sm font-medium text-gray-700">Nilai Respons</label>
-                <textarea id="modal-value" rows="10" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
+                <textarea id="modal-value" rows="10" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm"></textarea>
             </div>
             <div class="flex justify-end space-x-4">
                 <button id="modal-cancel" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Batal</button>
@@ -192,11 +206,11 @@
             <h2 class="text-2xl font-bold mb-4 text-gray-800">Tambah Keyword Baru</h2>
             <div class="mb-4">
                 <label for="add-modal-key" class="block text-sm font-medium text-gray-700">Keyword Baru</label>
-                <input type="text" id="add-modal-key" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <input type="text" id="add-modal-key" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm">
             </div>
             <div class="mb-4">
                 <label for="add-modal-value" class="block text-sm font-medium text-gray-700">Nilai Respons</label>
-                <textarea id="add-modal-value" rows="5" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
+                <textarea id="add-modal-value" rows="5" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm"></textarea>
             </div>
             <div class="flex justify-end space-x-4">
                 <button id="add-modal-cancel" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Batal</button>
@@ -208,13 +222,12 @@
     <script>
         const API_BASE_URL = "http://localhost:3001/admin/data";
         let currentResponsesData = {};
-        let currentCategory = 'dashboard'; // Default awal Dashboard
-        let myChart = null; // Variabel Chart
+        let currentCategory = 'dashboard';
+        let myChart = null; 
         let trafficChart = null;
         let peakHourChart = null;
         let libraryChart = null;
 
-        // --- UTILITIES ---
         const displayStatus = (message, isSuccess = true) => {
             const statusDiv = document.getElementById('status-message');
             statusDiv.textContent = message;
@@ -223,6 +236,7 @@
             setTimeout(() => statusDiv.classList.add('hidden'), 5000);
         };
 
+        // --- FETCH DATA EDITOR ---
         const fetchResponsesData = async () => {
             try {
                 const response = await fetch(API_BASE_URL);
@@ -235,122 +249,108 @@
             }
         };
 
-        // --- DASHBOARD LOGIC ---
+        // --- FETCH DATA DASHBOARD ---
         const loadDashboard = async () => {
             try {
                 const res = await fetch('http://localhost:3001/admin/stats/summary');
                 if (!res.ok) throw new Error("Gagal load stats");
                 const data = await res.json();
 
-                // 1. ISI KARTU STATISTIK
                 document.getElementById('stat-total').innerText = data.summary.total_chats;
                 document.getElementById('stat-users').innerText = data.summary.unique_users;
                 document.getElementById('stat-today').innerText = data.summary.today_chats;
 
-                // 2. RENDER CHART 1: TRAFFIC (LINE)
                 const ctxTraffic = document.getElementById('trafficChart').getContext('2d');
                 if (trafficChart) trafficChart.destroy();
-
                 trafficChart = new Chart(ctxTraffic, {
                     type: 'line',
                     data: {
                         labels: data.charts.trend_7_days.map(i => i.date),
                         datasets: [{
-                            label: 'Pesan Masuk',
-                            data: data.charts.trend_7_days.map(i => i.count),
-                            borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            borderWidth: 2, tension: 0.4, fill: true
+                            label: 'Pesan Masuk', data: data.charts.trend_7_days.map(i => i.count),
+                            borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 2, tension: 0.4, fill: true
                         }]
                     },
                     options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
                 });
 
-                // 3. RENDER CHART 2: PEAK HOURS (BAR)
                 const ctxPeak = document.getElementById('peakHourChart').getContext('2d');
                 if (peakHourChart) peakHourChart.destroy();
-                
-                // Siapkan array 24 jam (00-23) dengan nilai 0 default
                 const hours = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
                 const counts = new Array(24).fill(0);
-                
-                // Isi data dari database
                 data.charts.peak_hours.forEach(item => {
                     const idx = parseInt(item.hour);
                     if (idx >= 0 && idx < 24) counts[idx] = item.count;
                 });
-
                 peakHourChart = new Chart(ctxPeak, {
                     type: 'bar',
-                    data: {
-                        labels: hours,
-                        datasets: [{
-                            label: 'Aktivitas per Jam',
-                            data: counts,
-                            backgroundColor: '#6366f1',
-                            borderRadius: 4
-                        }]
-                    },
+                    data: { labels: hours, datasets: [{ label: 'Aktivitas per Jam', data: counts, backgroundColor: '#6366f1', borderRadius: 4 }] },
                     options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
                 });
 
-                // 4. RENDER CHART 3: LIBRARY COLLECTION (DOUGHNUT)
                 const ctxLib = document.getElementById('libraryChart').getContext('2d');
                 if (libraryChart) libraryChart.destroy();
-
                 const totalBooks = data.charts.library_composition.total_books || 0;
                 const borrowed = data.charts.library_composition.borrowed || 0;
                 const available = totalBooks - borrowed;
-
                 libraryChart = new Chart(ctxLib, {
                     type: 'doughnut',
-                    data: {
-                        labels: ['Tersedia di Rak', 'Sedang Dipinjam'],
-                        datasets: [{
-                            data: [available, borrowed],
-                            backgroundColor: ['#10b981', '#f59e0b'], // Hijau & Kuning
-                            hoverOffset: 4
-                        }]
-                    },
-                    options: { 
-                        maintainAspectRatio: false,
-                        plugins: { legend: { position: 'bottom' } }
-                    }
+                    data: { labels: ['Tersedia di Rak', 'Sedang Dipinjam'], datasets: [{ data: [available, borrowed], backgroundColor: ['#10b981', '#f59e0b'], hoverOffset: 4 }] },
+                    options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
                 });
 
-                // 5. RENDER TABEL TOP USERS
                 const tbody = document.getElementById('top-users-body');
                 tbody.innerHTML = '';
-                
                 if (data.top_users.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">Belum ada data</td></tr>';
                 } else {
                     data.top_users.forEach((user, index) => {
                         let badge = '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Aktif</span>';
                         if (index === 0) badge = '<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">👑 Duta Baca</span>';
-                        
-                        // Samarkan nomor WA sedikit untuk privasi di demo (Opsional)
-                        // const maskedId = user.user_id.substring(0, 4) + 'xxxx' + user.user_id.substring(user.user_id.length - 4);
-                        const displayId = user.user_id.replace('@c.us', '');
-
-                        tbody.innerHTML += `
-                            <tr>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#${index + 1}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${displayId}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-bold">${user.total} Chat</td>
-                                <td class="px-6 py-4 whitespace-nowrap">${badge}</td>
-                            </tr>
-                        `;
+                        const displayId = user.user_id.split('@')[0];
+                        tbody.innerHTML += `<tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#${index + 1}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><a href="https://wa.me/${displayId}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">${displayId}</a></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-bold">${user.total} Chat</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${badge}</td>
+                        </tr>`;
                     });
                 }
+            } catch (error) { console.error(error); displayStatus("Gagal memuat data Dashboard.", false); }
+        };
 
-            } catch (error) {
-                console.error(error);
-                displayStatus("Gagal memuat data Dashboard Lengkap.", false);
+        // --- FETCH DATA HISTORY CHAT ---
+        const fetchChatHistory = async () => {
+            try {
+                const response = await fetch('http://localhost:3001/api/chat-history');
+                const data = await response.json();
+                const tbody = document.getElementById('history-body');
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-500">Belum ada riwayat percakapan.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.forEach(log => {
+                    const cleanNumber = log.user_id ? log.user_id.split('@')[0] : 'Unknown';
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs">${new Date(log.timestamp).toLocaleString('id-ID')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap"><a href="https://wa.me/${cleanNumber}" target="_blank" class="text-blue-600 font-medium hover:underline">${cleanNumber}</a></td>
+                            <td class="px-6 py-4"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-[10px] font-bold uppercase">${log.context || 'General'}</span></td>
+                            <td class="px-6 py-4 text-gray-700 max-w-xs truncate" title="${log.message_in}">${log.message_in}</td>
+                            <td class="px-6 py-4 text-gray-500 italic max-w-xs truncate" title="${log.message_out}">${log.message_out || '-'}</td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                console.error("Gagal load history:", err);
+                document.getElementById('history-body').innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-red-500 font-bold">Gagal mengambil data dari server.</td></tr>';
             }
         };
 
-        // --- TABLE RENDER LOGIC ---
+        // --- RENDER TABLE EDITOR ---
         const createTableRow = (key, value, index) => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50';
@@ -369,28 +369,16 @@
         const renderTable = (category, searchTerm = '') => {
             const tableBody = document.getElementById('response-table-body');
             tableBody.innerHTML = '';
-            
             const data = currentResponsesData[category] || {};
-            const keys = Object.keys(data).filter(key => 
-                key.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                data[key].toLowerCase().includes(searchTerm.toLowerCase())
-            );
+            const keys = Object.keys(data).filter(key => key.toLowerCase().includes(searchTerm.toLowerCase()) || data[key].toLowerCase().includes(searchTerm.toLowerCase()));
 
-            if (keys.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">Tidak ada data.</td></tr>`;
-                return;
-            }
-
-            keys.forEach((key, index) => {
-                const value = data[key];
-                tableBody.appendChild(createTableRow(key, value, index));
-            });
-
+            if (keys.length === 0) { tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">Tidak ada data.</td></tr>`; return; }
+            keys.forEach((key, index) => { tableBody.appendChild(createTableRow(key, value=data[key], index)); });
             document.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', handleEdit));
             document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', handleDelete));
         };
 
-        // --- HANDLERS ---
+        // --- NAVIGATION HANDLER (PENTING: Di sinilah perbaikannya) ---
         const handleCategoryChange = (event) => {
             event.preventDefault();
             const newCategory = event.currentTarget.getAttribute('data-category');
@@ -400,64 +388,53 @@
             document.getElementById('page-title').textContent = event.currentTarget.textContent.trim();
             currentCategory = newCategory;
 
-            // TOGGLE VIEW (Dashboard vs Table)
-            const dashboardContainer = document.getElementById('dashboard-container');
-            const tableContainer = document.getElementById('table-container');
+            // 1. Sembunyikan semua halaman
+            document.getElementById('main-dashboard').classList.add('hidden');
+            document.getElementById('main-history').classList.add('hidden');
+            document.getElementById('main-editor').classList.add('hidden');
+
             const btnAdd = document.getElementById('btn-add-new-key');
             const btnSave = document.getElementById('btn-save-all');
 
+            // 2. Tampilkan halaman yang sesuai
             if (newCategory === 'dashboard') {
-                dashboardContainer.classList.remove('hidden');
-                tableContainer.classList.add('hidden');
-                btnAdd.classList.add('hidden');
-                btnSave.classList.add('hidden');
+                document.getElementById('main-dashboard').classList.remove('hidden');
+                btnAdd.classList.add('hidden'); btnSave.classList.add('hidden');
                 loadDashboard();
+            } else if (newCategory === 'history') {
+                document.getElementById('main-history').classList.remove('hidden');
+                btnAdd.classList.add('hidden'); btnSave.classList.add('hidden');
+                fetchChatHistory();
             } else {
-                dashboardContainer.classList.add('hidden');
-                tableContainer.classList.remove('hidden');
-                btnAdd.classList.remove('hidden');
-                btnSave.classList.remove('hidden');
+                document.getElementById('main-editor').classList.remove('hidden');
+                btnAdd.classList.remove('hidden'); btnSave.classList.remove('hidden');
                 fetchResponsesData();
             }
         };
 
+        // --- EDITOR ACTIONS ---
         const handleEdit = (event) => {
             const key = event.target.getAttribute('data-key');
-            const value = currentResponsesData[currentCategory][key];
             document.getElementById('modal-title').textContent = `Edit: ${key}`;
             document.getElementById('modal-key').value = key;
-            document.getElementById('modal-value').value = value;
-            document.getElementById('edit-modal').classList.remove('hidden');
-            document.getElementById('edit-modal').classList.add('flex');
+            document.getElementById('modal-value').value = currentResponsesData[currentCategory][key];
+            document.getElementById('edit-modal').classList.remove('hidden'); document.getElementById('edit-modal').classList.add('flex');
         };
 
         const handleDelete = async (event) => {
             const key = event.target.getAttribute('data-key');
             if (!confirm(`Hapus "${key}"?`)) return;
-
             try {
-                const response = await fetch(API_BASE_URL + '/delete-key', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ category: currentCategory, key: key })
-                });
+                const response = await fetch(API_BASE_URL + '/delete-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: currentCategory, key: key }) });
                 const result = await response.json();
-                if (response.ok) {
-                    displayStatus(result.message);
-                    fetchResponsesData();
-                } else throw new Error(result.message);
-            } catch (error) {
-                console.error(error);
-                displayStatus(error.message, false);
-            }
+                if (response.ok) { displayStatus(result.message); fetchResponsesData(); } else throw new Error(result.message);
+            } catch (error) { displayStatus(error.message, false); }
         };
 
         const handleModalSave = () => {
             const key = document.getElementById('modal-key').value;
-            const val = document.getElementById('modal-value').value;
-            currentResponsesData[currentCategory][key] = val;
-            document.getElementById('edit-modal').classList.add('hidden');
-            document.getElementById('edit-modal').classList.remove('flex');
+            currentResponsesData[currentCategory][key] = document.getElementById('modal-value').value;
+            document.getElementById('edit-modal').classList.add('hidden'); document.getElementById('edit-modal').classList.remove('flex');
             renderTable(currentCategory);
             displayStatus("Perubahan lokal disimpan. Klik 'Simpan Semua' untuk permanen.");
         };
@@ -466,64 +443,36 @@
             const btn = document.getElementById('btn-save-all');
             btn.textContent = 'Menyimpan...'; btn.disabled = true;
             try {
-                const response = await fetch(API_BASE_URL + '/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(currentResponsesData)
-                });
+                const response = await fetch(API_BASE_URL + '/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(currentResponsesData) });
                 const result = await response.json();
-                if (response.ok) displayStatus(result.message);
-                else throw new Error(result.message);
-            } catch (error) {
-                displayStatus(error.message, false);
-            } finally {
-                btn.textContent = 'Simpan Semua Perubahan'; btn.disabled = false;
-            }
+                if (response.ok) displayStatus(result.message); else throw new Error(result.message);
+            } catch (error) { displayStatus(error.message, false); } finally { btn.textContent = 'Simpan Semua Perubahan'; btn.disabled = false; }
         };
 
         const handleAddModalSave = async () => {
             const key = document.getElementById('add-modal-key').value.trim();
             const value = document.getElementById('add-modal-value').value.trim();
             if (!key || !value) return displayStatus("Data tidak boleh kosong", false);
-
             try {
-                const response = await fetch(API_BASE_URL + '/add-key', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ category: currentCategory, key, value })
-                });
+                const response = await fetch(API_BASE_URL + '/add-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: currentCategory, key, value }) });
                 const result = await response.json();
                 if (response.ok) {
-                    displayStatus(result.message);
-                    document.getElementById('add-modal').classList.add('hidden');
-                    document.getElementById('add-modal').classList.remove('flex');
-                    fetchResponsesData();
+                    displayStatus(result.message); document.getElementById('add-modal').classList.add('hidden'); document.getElementById('add-modal').classList.remove('flex'); fetchResponsesData();
                 } else throw new Error(result.message);
-            } catch (error) {
-                displayStatus(error.message, false);
-            }
+            } catch (error) { displayStatus(error.message, false); }
         };
 
         // --- INIT ---
         window.onload = () => {
-            // Setup Listeners
             document.querySelectorAll('.sidebar-link').forEach(link => link.addEventListener('click', handleCategoryChange));
             document.getElementById('btn-save-all').addEventListener('click', handleSaveAll);
             document.getElementById('btn-add-new-key').addEventListener('click', () => {
-                document.getElementById('add-modal-key').value = '';
-                document.getElementById('add-modal-value').value = '';
-                document.getElementById('add-modal').classList.remove('hidden');
-                document.getElementById('add-modal').classList.add('flex');
+                document.getElementById('add-modal-key').value = ''; document.getElementById('add-modal-value').value = '';
+                document.getElementById('add-modal').classList.remove('hidden'); document.getElementById('add-modal').classList.add('flex');
             });
-            document.getElementById('modal-cancel').addEventListener('click', () => {
-                document.getElementById('edit-modal').classList.add('hidden');
-                document.getElementById('edit-modal').classList.remove('flex');
-            });
+            document.getElementById('modal-cancel').addEventListener('click', () => { document.getElementById('edit-modal').classList.add('hidden'); document.getElementById('edit-modal').classList.remove('flex'); });
             document.getElementById('modal-save').addEventListener('click', handleModalSave);
-            document.getElementById('add-modal-cancel').addEventListener('click', () => {
-                document.getElementById('add-modal').classList.add('hidden');
-                document.getElementById('add-modal').classList.remove('flex');
-            });
+            document.getElementById('add-modal-cancel').addEventListener('click', () => { document.getElementById('add-modal').classList.add('hidden'); document.getElementById('add-modal').classList.remove('flex'); });
             document.getElementById('add-modal-save').addEventListener('click', handleAddModalSave);
             document.getElementById('search-input').addEventListener('keyup', (e) => renderTable(currentCategory, e.target.value));
 

@@ -1,30 +1,19 @@
-/**
- * WA WEB GATEWAY (Jalur Alternatif Tanpa API Berbayar)
- * * Cara Kerja:
- * 1. Menjalankan simulasi WhatsApp Web di terminal.
- * 2. Anda scan QR Code menggunakan WA pribadi/khusus bot.
- * 3. Pesan masuk -> Diteruskan ke Core Server -> Dibalas langsung.
- */
-
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const axios = require('axios');
-const express = require('express'); // TAMBAH INI
-const bodyParser = require('body-parser'); // TAMBAH INI
+const express = require('express');
+const bodyParser = require('body-parser');
 
-// Konfigurasi URL Core Server Anda
-const CORE_SERVICE_URL = 'http://localhost:3001/process-message';
-const GATEWAY_PORT = 3002; // Port khusus untuk Gateway
+const CORE_SERVICE_URL = 'http://127.0.0.1:3001/process-message';
+const GATEWAY_PORT = 3002;
 
-// Setup Server Express (Agar bisa dipanggil Core)
 const app = express();
 app.use(bodyParser.json());
 
-// Inisialisasi Client
 const client = new Client({
-    authStrategy: new LocalAuth(), // Menyimpan sesi login agar tidak perlu scan QR tiap kali restart
+    authStrategy: new LocalAuth(),
     puppeteer: {
-        headless: true, // Ubah ke false jika ingin melihat browser Chrome terbuka
+        headless: true, // Biarkan false dulu biar kelihatan
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -32,115 +21,152 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--disable-gpu'
+            '--disable-gpu',
+            '--disable-extensions'
         ]
     }
+    // HAPUS BAGIAN 'webVersionCache' DISINI. 
+    // Biarkan library baru mencari versi yang paling cocok sendiri.
 });
 
-// 1. Generate QR Code untuk Login
+// --- EVENT LISTENER ---
+
+client.on('loading_screen', (percent, message) => {
+    console.log(`⏳ Loading: ${percent}% - ${message}`);
+});
+
 client.on('qr', (qr) => {
-    console.log('\n=== SCAN QR CODE DI BAWAH INI DENGAN WHATSAPP ===\n');
+    console.log('📸 QR CODE MUNCUL!');
     qrcode.generate(qr, { small: true });
 });
 
-// 2. Notifikasi saat Berhasil Login
-client.on('ready', () => {
-    console.log('\n✅ WhatsApp Client sudah SIAP!');
-    console.log('Bot sekarang aktif menggunakan nomor Anda sendiri.');
+client.on('authenticated', () => {
+    console.log('🔐 Authenticated!');
 });
 
-// 3. Menangani Pesan Masuk
+client.on('auth_failure', msg => {
+    console.error('❌ Gagal Login:', msg);
+});
+
+client.on('ready', () => {
+    console.log('\n✅ WhatsApp Client SIAP & TERHUBUNG!');
+});
+
+// EVENT PENERIMA PESAN (YANG TADI DIAM SAJA)
 client.on('message', async (msg) => {
-    // Abaikan pesan status atau grup (opsional, bisa diatur)
+    // Abaikan pesan status
     if (msg.body === "") return; 
 
-    // Ambil info pengirim (Metode Aman / Bypass Error)
     const from = msg.from;
-    
-    // Kita ambil nama langsung dari metadata pesan, tanpa memanggil getContact()
-    // msg._data.notifyName biasanya berisi nama tampilan (Pushname)
-    const userName = msg._data.notifyName || "Pengguna WA"; 
-    
+    const userName = msg._data.notifyName || "User";
     const text = msg.body;
 
-    console.log(`[WA] Pesan dari ${userName} (${from}): ${text}`);
-
+    // ==========================================
+    // TAMBAHAN BARU: Ambil Nomor HP Asli
+    // ==========================================
+    let realNumber = "";
     try {
-        // --- KIRIM KE CORE SERVER ---
-        // Kita kirim ke core_server.js yang sudah Anda buat sebelumnya
+        const contact = await msg.getContact();
+        realNumber = contact.number; // Ini akan mengambil nomor murni (misal: 628123456)
+    } catch (err) {
+        realNumber = from.split('@')[0]; // Fallback jika gagal
+    }
+    // ==========================================
+
+    console.log(`\n📩 [PESAN MASUK] Dari: ${userName} (${from})`);
+    console.log(`💬 Isi: ${text}`);
+
+    // LOGIKA TERUSKAN KE CORE
+    try {
         const response = await axios.post(CORE_SERVICE_URL, {
-            from: from,       // ID unik pengirim
-            text: text,       // Isi pesan
-            userName: userName // Nama user
+            from: from,
+            text: text,
+            userName: userName,
+            realNumber: realNumber
         });
 
-        // --- TERIMA BALASAN & KIRIM BALIK ---
         if (response.data && response.data.reply) {
             const replyData = response.data.reply;
-
-            // Cek: Apakah ini ARRAY (Banyak Pesan/Bubble)?
-            if (Array.isArray(replyData)) {
-                // Loop dan kirim satu per satu
-                for (const singleMsg of replyData) {
-                    if (singleMsg) {
-                        try {
-                            // Bungkus sendMessage dengan try-catch agar kalau 1 gagal, yang lain tetap lanjut
-                            await client.sendMessage(from, String(singleMsg) + '\u200B', { linkPreview: false });
-                            
-                            // Jeda sedikit biar aman
-                            await new Promise(r => setTimeout(r, 500)); 
-                        } catch (sendError) {
-                            console.error(`[WA ERROR] Gagal kirim bubble: ${sendError.message}`);
-                            // Lanjut ke pesan berikutnya (continue)
-                        }
-                    }
-                }
-            } 
-            // Jika cuma STRING biasa (Satu Pesan)
-            else {
-                try {
-                    await client.sendMessage(from, String(replyData) + '\u200B', { linkPreview: false });
-                } catch (sendError) {
-                     console.error(`[WA ERROR] Gagal kirim pesan: ${sendError.message}`);
-                }
-            }
             
-            console.log(`[WA] Membalas ke ${userName}: Sukses.`);
+            // Logika kirim balasan (Support Array/String)
+            // ... (Copy logika kirim pesan dari kode Anda sebelumnya disini) ...
+            
+            // SEMENTARA PAKAI INI YANG SIMPEL DULU UNTUK TES:
+            if (Array.isArray(replyData)) {
+                 for (const txt of replyData) await client.sendMessage(from, txt);
+            } else {
+                 await client.sendMessage(from, replyData);
+            }
+            console.log(`✅ [BALASAN TERKIRIM]`);
         }
-
     } catch (error) {
-        console.error('[ERROR] Gagal menghubungi Core Server:', error.message);
-        // Opsi: Kirim pesan error ke user jika core mati
-        // await msg.reply("Maaf, server sedang offline.");
+        console.error(`❌ [ERROR CORE] ${error.message}`);
+        // await client.sendMessage(from, "Maaf, server sedang sibuk.");
     }
 });
 
-// --- 2. ENDPOINT BARU: MENERIMA PERINTAH KIRIM PESAN (PUSH) ---
-// Ini yang akan dipanggil oleh Core Server saat Session Timeout
+// =========================================================
+// MENDETEKSI ADMIN MEMBALAS LANGSUNG VIA HP
+// =========================================================
+client.on('message_create', async msg => {
+    // Jika pesan dikirim oleh nomor ini (Me/Admin)
+    if (msg.fromMe) {
+        
+        // --- DAFTAR PESAN OTOMATIS BOT YANG HARUS DIABAIKAN ---
+        const ignoredTexts = [
+            "Sesi Operator Berakhir",
+            "Menghubungkan ke Pustakawan", 
+            "ALERT PUSTAKAWAN",
+            "Mode Pustakawan diakhiri" // Pengecualian untuk balasan "!bot"
+        ];
+
+        // Cek apakah isi pesan mengandung salah satu teks di atas
+        const isAutomatedMessage = ignoredTexts.some(ignoredText => msg.body.includes(ignoredText));
+
+        // Jika ini pesan otomatis dari bot, hentikan proses (jangan reset timer)
+        if (isAutomatedMessage) {
+            return; 
+        }
+        // --------------------------------------------------------
+
+        try {
+            await axios.post('http://127.0.0.1:3001/api/admin-sync', {
+                targetNumber: msg.to 
+            });
+            console.log(`[ADMIN SYNC] Pustakawan membalas manual ke: ${msg.to}`);
+        } catch (error) {
+            // Abaikan error ringan
+        }
+    }
+});
+
+// Endpoint PUSH
 app.post('/send-direct', async (req, res) => {
     try {
         const { to, message } = req.body;
 
         if (!to || !message) {
-            return res.status(400).json({ status: 'error', message: 'Missing parameters' });
+            return res.status(400).json({ error: "Parameter 'to' dan 'message' wajib diisi." });
         }
 
-        // Kirim pesan via WA
+        // --- TAMBAHKAN 2 BARIS INI ---
+        console.log(`[DEBUG] Mencoba mengirim ke: "${to}"`);
+        console.log(`[DEBUG] Tipe data 'to':`, typeof to);
+        // -----------------------------
+
         await client.sendMessage(to, message);
-        console.log(`[PUSH] Pesan Timeout dikirim ke ${to}`);
-        
-        res.json({ status: 'success' });
+
+        console.log(`[GATEWAY] Berhasil mengirim pesan direct ke ${to}`);
+        return res.status(200).json({ status: "success", message: "Pesan terkirim" });
+
     } catch (error) {
-        console.error('[PUSH ERROR]', error.message);
-        res.status(500).json({ status: 'error', error: error.message });
+        console.error("[GATEWAY ERROR] Gagal mengirim pesan direct:", error.message);
+        return res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-// Jalankan Client
-console.log('Menjalankan WhatsApp Gateway...');
 client.initialize();
 
-// Jalankan Server Express Gateway
 app.listen(GATEWAY_PORT, () => {
     console.log(`📡 Gateway Listening on port ${GATEWAY_PORT}`);
 });

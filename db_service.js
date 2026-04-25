@@ -185,12 +185,53 @@ async function cekStatusAnggota(nim) {
     }
 }
 
+// --- BARU: Cari Anggota by Nomor Telepon (Hybrid Registration) ---
+async function cariAnggotaByTelepon(noTelp) {
+    try {
+        // Trik: Ambil 9-10 digit terakhir dari nomor WA untuk mengabaikan awalan '0' atau '62'
+        // Contoh: '628123456789' akan menjadi '8123456789'
+        const phoneSuffix = noTelp.length > 9 ? noTelp.slice(-9) : noTelp;
+        const searchParam = `%${phoneSuffix}`;
+
+        const [rows] = await db.execute(
+            `SELECT No_Anggota, Nama, Telepon 
+             FROM anggota 
+             WHERE Telepon LIKE ?`,
+            [searchParam]
+        );
+        
+        return rows.length > 0 ? rows[0] : null; 
+    } catch (error) {
+        console.error("[DB ERROR] cariAnggotaByTelepon:", error.message);
+        return null;
+    }
+}
+
+// --- BARU: Cari Anggota by NIM (Validasi Manual) ---
+async function getAnggotaByNim(nim) {
+    try {
+        const [rows] = await db.execute(
+            `SELECT No_Anggota, Nama, Telepon 
+             FROM anggota 
+             WHERE No_Anggota = ?`,
+            [nim]
+        );
+        
+        return rows.length > 0 ? rows[0] : null;
+    } catch (error) {
+        console.error("[DB ERROR] getAnggotaByNim:", error.message);
+        return null;
+    }
+}
+
 
 // Jangan lupa export fungsi baru ini
 module.exports = {
     cariBukuByJudul,
-    cariBukuByPengarang, // <--- Tambahkan ini
+    cariBukuByPengarang,
     getDetailBukuLengkap,
     cariBukuById,
-    cekStatusAnggota
+    cekStatusAnggota,
+    cariAnggotaByTelepon,
+    getAnggotaByNim
 };
