@@ -28,3 +28,6 @@ Thumbs.db
 backups/
 logs/
 *.log
+# SQLite WAL files
+*.db-shm
+*.db-wal

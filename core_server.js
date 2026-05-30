@@ -1461,28 +1461,73 @@ app.post("/process-message", async (req, res) => {
 
         // C. Jika user MEMINTA obrolan manual untuk pertama kali
         if (cleanText === '8' || cleanText === 'admin' || cleanText === 'bantuan admin') {
-            await setUserMode(from, 'human');
+            await setUserMode(from, 'pilih_cabang');
 
-            // Kirim notifikasi "Alert" ke HP Admin
-            try {
-                const userNumberOnly = from.replace('@c.us', '');
-                const alertMsg = `🚨 *ALERT PUSTAKAWAN*\n\n` +
-                                 `Mahasiswa bernama *${userName}* meminta obrolan manual.\n` +
-                                 `Nomor WA: wa.me/${finalNumber}\n\n` +
-                                 `_Balas pesan beliau manual. Jika masalah sudah selesai, ketik *!bot* di chat mahasiswa tersebut._`;
+            return res.json({ 
+                reply: "🏢 *Pilih Cabang Perpustakaan*\n\nSilakan balas dengan angka sesuai lokasi kampus yang ingin Anda hubungi:\n\n*1.* Kampus Meruya\n*2.* Kampus Menteng\n*3.* Kampus Warung Buncit\n\nKetik *BATAL* untuk kembali ke menu utama" 
+            });
+        }
 
-                await axios.post(WA_GATEWAY_URL, {
-                    to: ADMIN_NUMBER,
-                    message: alertMsg
+        // D. Jika user berada dalam state memilih cabang
+        if (currentMode === 'pilih_cabang') {
+
+            // Jika user ingin membatalkan (Bisa ketik 'batal' atau 'menu')
+            if (cleanText === 'batal' || cleanText === 'menu') {
+                await setUserMode(from, 'bot');
+                return res.json({ 
+                    reply: "✅ *Dibatalkan.*\n\nAnda telah kembali ke menu utama. Silakan ketik *Menu* untuk melihat layanan kembali." 
                 });
-            } catch (err) {
-                console.error("[ERROR] Gagal mengirim alert ke admin:", err.message);
             }
 
-            // Balasan bot ke Mahasiswa
-            return res.json({ 
-                reply: "👨‍💻 *Menghubungkan ke Pustakawan...*\n\nMohon tunggu sebentar, pesan Anda akan segera dibalas oleh staf kami secara manual.\n_(Sistem Bot dinonaktifkan sementara)_" 
-            });
+            // Opsi 1: Kampus Meruya (Masuk ke Human Mode)
+            if (cleanText === '1' || cleanText === 'meruya') {
+                await setUserMode(from, 'human');
+
+                // Kirim notifikasi "Alert" ke HP Admin Meruya
+                try {
+                    const userNumberOnly = from.replace('@c.us', '');
+                    const alertMsg = `🚨 *ALERT PUSTAKAWAN*\n\n` +
+                                    `Mahasiswa bernama *${userName}* meminta obrolan manual.\n` +
+                                    `Nomor WA: wa.me/${finalNumber}\n\n` +
+                                    `_Balas pesan beliau manual. Jika masalah sudah selesai, ketik *!bot* di chat mahasiswa tersebut._`;
+
+                    await axios.post(WA_GATEWAY_URL, {
+                        to: ADMIN_NUMBER,
+                        message: alertMsg
+                    });
+                } catch (err) {
+                    console.error("[ERROR] Gagal mengirim alert ke admin:", err.message);
+                }
+
+                // Balasan bot ke Mahasiswa
+                return res.json({ 
+                    reply: "👨‍💻 *Menghubungkan ke Pustakawan...*\n\nMohon tunggu sebentar, pesan Anda akan segera dibalas oleh staf kami secara manual.\n_(Sistem Bot dinonaktifkan sementara)_" 
+                });
+
+            } 
+            
+            // Opsi 2: Kampus Menteng (Lempar Link, kembali ke Bot)
+            else if (cleanText === '2' || cleanText === 'menteng') {
+                await setUserMode(from, 'bot'); // Kembalikan state ke bot
+                return res.json({ 
+                    reply: "📍 *Kampus Menteng*\n\nSilakan hubungi Pustakawan Cabang Menteng melalui tautan WhatsApp berikut:\n👉 https://wa.me/6285219542943\n\n_Ketik *Menu* jika masih membutuhkan layanan bot._" 
+                });
+            } 
+            
+            // Opsi 3: Kampus Warung Buncit (Lempar Link, kembali ke Bot)
+            else if (cleanText === '3' || cleanText === 'warung buncit') {
+                await setUserMode(from, 'bot'); // Kembalikan state ke bot
+                return res.json({ 
+                    reply: "📍 *Kampus Warung Buncit*\n\nSilakan hubungi Pustakawan Cabang Warung Buncit melalui tautan WhatsApp berikut:\n👉 https://wa.me/6282135935955\n\n_Ketik *Menu* jika masih membutuhkan layanan bot._" 
+                });
+            } 
+            
+            // Jika balasan tidak sesuai (Bukan 1, 2, 3, atau batal)
+            else {
+                return res.json({
+                    reply: "⚠️ Pilihan tidak valid. Silakan balas dengan angka *1, 2, atau 3*.\nKetik *menu* untuk membatalkan dan kembali ke menu."
+                });
+            }
         }
         
         // =========================================================
