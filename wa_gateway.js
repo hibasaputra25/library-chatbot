@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const axios = require('axios');
@@ -13,7 +14,8 @@ app.use(bodyParser.json());
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-        headless: true, // Biarkan false dulu biar kelihatan
+        headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -25,8 +27,6 @@ const client = new Client({
             '--disable-extensions'
         ]
     }
-    // HAPUS BAGIAN 'webVersionCache' DISINI. 
-    // Biarkan library baru mencari versi yang paling cocok sendiri.
 });
 
 // --- EVENT LISTENER ---

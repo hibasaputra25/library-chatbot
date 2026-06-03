@@ -1,467 +1,149 @@
 #!/bin/bash
 
-################################################################################
-# AUTOMATED INSTALLATION SCRIPT FOR UBUNTU SERVER
-# PustakaBot - Universitas Mercu Buana
-# 
-# This script automates the installation of all dependencies needed to run
-# the chatbot on Ubuntu 20.04 LTS or newer.
+# ================================================================
+# PUSTAKABOT - AUTOMATED INSTALLATION FOR UBUNTU
+# Tested on Ubuntu 22.04 LTS
 #
 # Usage:
-#   chmod +x install_ubuntu.sh
-#   ./install_ubuntu.sh
-################################################################################
+#   bash install_ubuntu.sh
+#
+# DO NOT use: sh install_ubuntu.sh (will cause errors)
+# ================================================================
 
-set -e  # Exit on error
+set -e
 
-# Colors for output
-RED='\033[0;31m'
 GREEN='\033[0;32m'
+RED='\033[0;31m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Functions
-print_success() {
-    echo -e "${GREEN}✓ $1${NC}"
-}
+ok()   { echo -e "${GREEN}[OK] $1${NC}"; }
+fail() { echo -e "${RED}[FAIL] $1${NC}"; }
+warn() { echo -e "${YELLOW}[WARN] $1${NC}"; }
+info() { echo -e "[INFO] $1"; }
 
-print_error() {
-    echo -e "${RED}✗ $1${NC}"
-}
-
-print_info() {
-    echo -e "${BLUE}ℹ $1${NC}"
-}
-
-print_warning() {
-    echo -e "${YELLOW}⚠ $1${NC}"
-}
-
-print_header() {
-    echo -e "\n${BLUE}================================${NC}"
-    echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}================================${NC}\n"
-}
-
-# Check if running as root
-if [ "$EUID" -eq 0 ]; then 
-    print_error "Do not run this script as root. Run as regular user with sudo privileges."
+# ==============================
+# CHECK BASH
+# ==============================
+if [ -z "$BASH_VERSION" ]; then
+    echo "ERROR: This script must be run with bash, not sh."
+    echo "Usage: bash install_ubuntu.sh"
     exit 1
 fi
 
-# Check Ubuntu version
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    if [[ "$ID" != "ubuntu" ]]; then
-        print_warning "This script is designed for Ubuntu. Your OS: $ID"
-        read -p "Continue anyway? (y/n) " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
-    fi
+# ==============================
+# CHECK ROOT
+# ==============================
+if [ "$EUID" -eq 0 ]; then
+    fail "Do not run as root. Run as regular user."
+    exit 1
 fi
 
-print_header "PUSTAKABOT UBUNTU INSTALLATION"
-print_info "This script will install:"
-echo "  - Node.js (LTS)"
-echo "  - MySQL Server"
-echo "  - Chromium & dependencies (for WhatsApp Web.js)"
-echo "  - PM2 Process Manager"
-echo "  - Nginx Web Server"
+echo "================================"
+echo "  PUSTAKABOT UBUNTU INSTALLER"
+echo "================================"
 echo ""
-read -p "Continue with installation? (y/n) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    print_info "Installation cancelled."
-    exit 0
-fi
+info "This will install: Node.js, Chromium, PM2"
+info "Skipping MySQL (database is on remote server)"
+echo ""
 
-################################################################################
+# ==============================
 # 1. SYSTEM UPDATE
-################################################################################
-print_header "Step 1: System Update"
-
-print_info "Updating package lists..."
-sudo apt update
-
-print_info "Upgrading installed packages..."
+# ==============================
+info "Updating system..."
+sudo apt update -y
 sudo apt upgrade -y
+ok "System updated"
 
-print_success "System updated"
+# ==============================
+# 2. INSTALL ESSENTIALS
+# ==============================
+info "Installing essential packages..."
+sudo apt install -y curl wget git build-essential
+ok "Essentials installed"
 
-################################################################################
-# 2. INSTALL ESSENTIAL TOOLS
-################################################################################
-print_header "Step 2: Essential Tools"
-
-print_info "Installing essential build tools..."
-sudo apt install -y \
-    curl \
-    wget \
-    git \
-    build-essential \
-    software-properties-common \
-    apt-transport-https \
-    ca-certificates \
-    gnupg \
-    lsb-release
-
-print_success "Essential tools installed"
-
-################################################################################
-# 3. INSTALL NODE.JS
-################################################################################
-print_header "Step 3: Node.js Installation"
-
+# ==============================
+# 3. INSTALL NODE.JS VIA NVM
+# ==============================
 if command -v node &> /dev/null; then
-    CURRENT_NODE_VERSION=$(node --version)
-    print_info "Node.js already installed: $CURRENT_NODE_VERSION"
-    read -p "Reinstall Node.js? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Skipping Node.js installation"
-    else
-        INSTALL_NODE=true
-    fi
+    warn "Node.js already installed: $(node --version)"
 else
-    INSTALL_NODE=true
-fi
-
-if [ "$INSTALL_NODE" = true ]; then
-    print_info "Installing NVM (Node Version Manager)..."
+    info "Installing NVM..."
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 
-    # Load NVM
     export NVM_DIR="$HOME/.nvm"
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
-    print_info "Installing Node.js LTS..."
+    info "Installing Node.js LTS..."
     nvm install --lts
     nvm use --lts
     nvm alias default lts/*
-
-    NODE_VERSION=$(node --version)
-    NPM_VERSION=$(npm --version)
-    print_success "Node.js installed: $NODE_VERSION"
-    print_success "NPM installed: $NPM_VERSION"
+    ok "Node.js installed: $(node --version)"
 fi
 
-################################################################################
-# 4. INSTALL MYSQL
-################################################################################
-print_header "Step 4: MySQL Server Installation"
+# Make sure NVM is loaded for rest of script
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-if command -v mysql &> /dev/null; then
-    print_info "MySQL already installed"
-    read -p "Reinstall MySQL? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Skipping MySQL installation"
-    else
-        INSTALL_MYSQL=true
-    fi
+# ==============================
+# 4. INSTALL CHROMIUM
+# ==============================
+info "Installing Chromium..."
+sudo apt install -y chromium-browser
+if command -v chromium-browser &> /dev/null; then
+    ok "Chromium installed: $(which chromium-browser)"
 else
-    INSTALL_MYSQL=true
+    fail "Chromium installation failed"
 fi
 
-if [ "$INSTALL_MYSQL" = true ]; then
-    print_info "Installing MySQL Server..."
-    sudo apt install -y mysql-server
-
-    print_info "Starting MySQL service..."
-    sudo systemctl start mysql
-    sudo systemctl enable mysql
-
-    print_success "MySQL installed and started"
-    
-    print_warning "IMPORTANT: Run 'sudo mysql_secure_installation' after this script completes!"
-    echo "Press any key to continue..."
-    read -n 1 -s
-fi
-
-################################################################################
-# 5. INSTALL CHROMIUM & DEPENDENCIES
-################################################################################
-print_header "Step 5: Chromium & Dependencies (for WhatsApp Web.js)"
-
-print_info "Installing Chromium and required dependencies..."
-sudo apt install -y \
-    gconf-service \
-    libasound2 \
-    libatk1.0-0 \
-    libc6 \
-    libcairo2 \
-    libcups2 \
-    libdbus-1-3 \
-    libexpat1 \
-    libfontconfig1 \
-    libgcc1 \
-    libgconf-2-4 \
-    libgdk-pixbuf2.0-0 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libstdc++6 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxi6 \
-    libxrandr2 \
-    libxrender1 \
-    libxss1 \
-    libxtst6 \
-    ca-certificates \
-    fonts-liberation \
-    libappindicator1 \
-    libnss3 \
-    lsb-release \
-    xdg-utils \
-    wget \
-    chromium-browser
-
-print_success "Chromium and dependencies installed"
-
-################################################################################
-# 6. INSTALL PM2
-################################################################################
-print_header "Step 6: PM2 Process Manager"
-
+# ==============================
+# 5. INSTALL PM2
+# ==============================
 if command -v pm2 &> /dev/null; then
-    PM2_VERSION=$(pm2 --version)
-    print_info "PM2 already installed: $PM2_VERSION"
-    read -p "Reinstall PM2? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Skipping PM2 installation"
-    else
-        INSTALL_PM2=true
-    fi
+    warn "PM2 already installed: $(pm2 --version)"
 else
-    INSTALL_PM2=true
-fi
-
-if [ "$INSTALL_PM2" = true ]; then
-    print_info "Installing PM2 globally..."
+    info "Installing PM2..."
     npm install -g pm2
-
-    PM2_VERSION=$(pm2 --version)
-    print_success "PM2 installed: $PM2_VERSION"
-
-    print_info "Setting up PM2 startup script..."
-    pm2 startup > /tmp/pm2_startup_cmd.txt
-    STARTUP_CMD=$(grep -oP '(?<=sudo ).*' /tmp/pm2_startup_cmd.txt | head -1)
-    
-    if [ ! -z "$STARTUP_CMD" ]; then
-        print_info "Executing: sudo $STARTUP_CMD"
-        sudo bash -c "$STARTUP_CMD"
-        print_success "PM2 startup configured"
-    else
-        print_warning "Could not auto-configure PM2 startup. Run 'pm2 startup' manually."
-    fi
-    
-    rm /tmp/pm2_startup_cmd.txt
+    ok "PM2 installed: $(pm2 --version)"
 fi
 
-################################################################################
-# 7. INSTALL NGINX
-################################################################################
-print_header "Step 7: Nginx Web Server"
-
-if command -v nginx &> /dev/null; then
-    NGINX_VERSION=$(nginx -v 2>&1 | grep -oP '\d+\.\d+\.\d+')
-    print_info "Nginx already installed: $NGINX_VERSION"
-    read -p "Reinstall Nginx? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Skipping Nginx installation"
-    else
-        INSTALL_NGINX=true
-    fi
+# ==============================
+# 6. SETUP PM2 STARTUP
+# ==============================
+info "Configuring PM2 startup..."
+PM2_STARTUP=$(pm2 startup 2>&1 | grep "sudo env")
+if [ ! -z "$PM2_STARTUP" ]; then
+    eval "$PM2_STARTUP"
+    ok "PM2 startup configured"
 else
-    INSTALL_NGINX=true
+    warn "PM2 startup: run 'pm2 startup' manually if needed"
 fi
 
-if [ "$INSTALL_NGINX" = true ]; then
-    print_info "Installing Nginx..."
-    sudo apt install -y nginx
-
-    print_info "Starting Nginx service..."
-    sudo systemctl start nginx
-    sudo systemctl enable nginx
-
-    NGINX_VERSION=$(nginx -v 2>&1 | grep -oP '\d+\.\d+\.\d+')
-    print_success "Nginx installed: $NGINX_VERSION"
-fi
-
-################################################################################
-# 8. INSTALL CERTBOT (Optional - for SSL)
-################################################################################
-print_header "Step 8: Certbot (SSL Certificate)"
-
-read -p "Install Certbot for SSL certificates? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    print_info "Installing Certbot..."
-    sudo apt install -y certbot python3-certbot-nginx
-    
-    print_success "Certbot installed"
-    print_info "Run 'sudo certbot --nginx -d your-domain.com' to obtain SSL certificate"
-else
-    print_info "Skipping Certbot installation"
-fi
-
-################################################################################
-# 9. INSTALL FAIL2BAN (Optional - for security)
-################################################################################
-print_header "Step 9: Fail2Ban (Brute Force Protection)"
-
-read -p "Install Fail2Ban for security? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    print_info "Installing Fail2Ban..."
-    sudo apt install -y fail2ban
-    
-    sudo systemctl start fail2ban
-    sudo systemctl enable fail2ban
-    
-    print_success "Fail2Ban installed and started"
-else
-    print_info "Skipping Fail2Ban installation"
-fi
-
-################################################################################
-# 10. SETUP FIREWALL (UFW)
-################################################################################
-print_header "Step 10: Firewall Configuration"
-
-read -p "Configure UFW firewall? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    print_info "Configuring UFW..."
-    
-    # Allow SSH (CRITICAL!)
-    sudo ufw allow 22/tcp
-    print_success "SSH allowed (port 22)"
-    
-    # Allow HTTP & HTTPS
-    sudo ufw allow 80/tcp
-    sudo ufw allow 443/tcp
-    print_success "HTTP/HTTPS allowed (ports 80, 443)"
-    
-    # Deny Node.js ports (only accessible via Nginx)
-    sudo ufw deny 3001/tcp
-    sudo ufw deny 3002/tcp
-    print_success "Node.js ports blocked from external access"
-    
-    # Enable firewall
-    print_warning "About to enable firewall. Make sure SSH (port 22) is allowed!"
-    read -p "Enable UFW now? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        sudo ufw --force enable
-        print_success "Firewall enabled"
-        sudo ufw status
-    else
-        print_info "Firewall not enabled. Run 'sudo ufw enable' manually."
-    fi
-else
-    print_info "Skipping firewall configuration"
-fi
-
-################################################################################
-# 11. CREATE DIRECTORY STRUCTURE
-################################################################################
-print_header "Step 11: Directory Structure"
-
-print_info "Creating application directories..."
-mkdir -p ~/apps
-mkdir -p ~/backups
-mkdir -p ~/logs
-
-print_success "Directories created:"
-echo "  - ~/apps (for application code)"
-echo "  - ~/backups (for database backups)"
-echo "  - ~/logs (for log files)"
-
-################################################################################
-# 12. SUMMARY
-################################################################################
-print_header "Installation Summary"
-
-print_success "Installation completed successfully!"
+# ==============================
+# SUMMARY
+# ==============================
 echo ""
-echo "Installed components:"
-echo "  ✓ Node.js $(node --version 2>/dev/null || echo 'N/A')"
-echo "  ✓ NPM $(npm --version 2>/dev/null || echo 'N/A')"
-echo "  ✓ MySQL $(mysql --version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1 || echo 'N/A')"
-echo "  ✓ Chromium"
-echo "  ✓ PM2 $(pm2 --version 2>/dev/null || echo 'N/A')"
-echo "  ✓ Nginx $(nginx -v 2>&1 | grep -oP '\d+\.\d+\.\d+' || echo 'N/A')"
-
-if command -v certbot &> /dev/null; then
-    echo "  ✓ Certbot $(certbot --version 2>&1 | grep -oP '\d+\.\d+\.\d+' || echo 'installed')"
-fi
-
-if command -v fail2ban-server &> /dev/null; then
-    echo "  ✓ Fail2Ban installed"
-fi
-
+echo "================================"
+echo "  INSTALLATION COMPLETE"
+echo "================================"
 echo ""
-print_header "Next Steps"
-echo "1. Secure MySQL:"
-echo "   sudo mysql_secure_installation"
+echo "Installed:"
+echo "  Node.js: $(node --version 2>/dev/null || echo 'NOT INSTALLED')"
+echo "  NPM:     $(npm --version 2>/dev/null || echo 'NOT INSTALLED')"
+echo "  PM2:     $(pm2 --version 2>/dev/null || echo 'NOT INSTALLED')"
+echo "  Chromium: $(which chromium-browser 2>/dev/null || echo 'NOT INSTALLED')"
 echo ""
-echo "2. Create MySQL database and user:"
-echo "   sudo mysql"
-echo "   > CREATE DATABASE lib1;"
-echo "   > CREATE USER 'biroperpustakaan'@'localhost' IDENTIFIED BY 'your-password';"
-echo "   > GRANT ALL PRIVILEGES ON lib1.* TO 'biroperpustakaan'@'localhost';"
-echo "   > FLUSH PRIVILEGES;"
-echo "   > EXIT;"
+echo "Next steps:"
+echo "  1. Clone/upload your project"
+echo "  2. cd ~/library-chatbot"
+echo "  3. npm install"
+echo "  4. cp .env.example .env"
+echo "  5. nano .env  (edit database credentials)"
+echo "  6. pm2 start ecosystem.config.js"
+echo "  7. pm2 logs"
 echo ""
-echo "3. Clone/Upload your application:"
-echo "   cd ~/apps"
-echo "   git clone <your-repo-url> server_chatbot"
-echo "   # Or upload via SCP/SFTP"
+echo "IMPORTANT: Always run PM2 commands with bash loaded:"
+echo "  export NVM_DIR=\"\$HOME/.nvm\""
+echo "  [ -s \"\$NVM_DIR/nvm.sh\" ] && \\. \"\$NVM_DIR/nvm.sh\""
 echo ""
-echo "4. Install application dependencies:"
-echo "   cd ~/apps/server_chatbot"
-echo "   npm install"
-echo ""
-echo "5. Configure environment:"
-echo "   cp .env.example .env"
-echo "   nano .env"
-echo "   # Update all values for production"
-echo ""
-echo "6. Start application with PM2:"
-echo "   pm2 start ecosystem.config.js"
-echo "   pm2 save"
-echo ""
-echo "7. Configure Nginx:"
-echo "   sudo nano /etc/nginx/sites-available/chatbot"
-echo "   # Add your nginx configuration"
-echo "   sudo ln -s /etc/nginx/sites-available/chatbot /etc/nginx/sites-enabled/"
-echo "   sudo nginx -t"
-echo "   sudo systemctl reload nginx"
-echo ""
-echo "8. Obtain SSL certificate (if domain configured):"
-echo "   sudo certbot --nginx -d your-domain.com"
-echo ""
-echo "9. Test your application:"
-echo "   curl http://localhost:3001/api/status"
-echo "   curl http://your-server-ip/admin"
-echo ""
-
-print_success "Installation script completed!"
-print_info "For detailed deployment guide, see: DEPLOYMENT_UBUNTU.md"
-echo ""
+ok "Done!"
