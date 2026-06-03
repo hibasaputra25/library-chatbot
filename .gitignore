@@ -1,33 +1,160 @@
-# Dependency (File library yang berat, nanti di-install ulang pakai npm install)
+# ============================================================================
+# .gitignore untuk PustakaBot
+# ============================================================================
+
+# Node.js
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
 
-# Environment Variables (Rahasianya ada di sini!)
+# Environment Variables
 .env
+.env.local
+.env.production
+.env.development
+.env.test
+.env.*.local
 
-# Sesi WhatsApp (PENTING: Jangan upload ini agar sesi WA tidak dibajak)
-.wwebjs_auth/
-.wwebjs_cache/
-.wwebjs_auth
-.wwebjs_cache
-
-# Log sistem (Opsional)
-npm-debug.log
+# Logs
 logs/
 *.log
+pm2-*.log
+*.log.*
 
-# File sistem operasi (Sampah dari Mac/Windows)
-.DS_Store
-Thumbs.db
+# PM2
+.pm2/
+pids/
+*.pid
+*.seed
+*.pid.lock
 
-# Database
+# WhatsApp Web.js Session Data
+.wwebjs_auth/
+.wwebjs_cache/
+session/
+*.data.json
+
+# Database Files
 *.db
+*.db-shm
+*.db-wal
+analytics.db
+analytics.db-journal
 *.sqlite
 *.sqlite3
 
-# Backups & Logs
-backups/
-logs/
-*.log
-# SQLite WAL files
-*.db-shm
-*.db-wal
+# Database Backups (if stored locally)
+backups/*.sql
+backups/*.sql.gz
+backups/*.db
+
+# QR Codes
+qr.png
+qr-*.png
+*.qr
+
+# Uploads & Temp Files
+uploads/
+temp/
+tmp/
+*.tmp
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Test Coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Build Output
+dist/
+build/
+out/
+
+# Cache
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+
+# Certificates & Keys (CRITICAL - Never commit these!)
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+ssl/
+certs/
+
+# Secrets & Credentials (CRITICAL)
+secrets/
+credentials/
+*.credentials
+service-account*.json
+
+# Configuration Overrides
+config.local.js
+config.production.js
+*.local.json
+
+# User-specific Files
+.user
+*.user
+
+# Archive Files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Documentation Build
+docs/_build/
+site/
+
+# Python (if any Python scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# Optional: Backup files from editors
+*.bak
+*.backup
+*.old
+
+# Optional: Test files you don't want to commit
+test-local/
+*.test.local.js
+
+# Optional: Local development scripts
+run-local.sh
+start-local.bat
+test-local.*

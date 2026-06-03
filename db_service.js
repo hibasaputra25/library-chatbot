@@ -1,4 +1,4 @@
-// db_service.js
+﻿// db_service.js
 const db = require('./db_config');
 
 // 1. Fungsi Cari Buku berdasarkan ID (Sudah ada)
@@ -20,28 +20,33 @@ async function cariBukuByJudul(keyword) {
     try {
         const currentYear = new Date().getFullYear();
         const minYear = currentYear - 20;
-        
-        // Tambahkan wildcard % agar bisa mencari kata di tengah kalimat
-        const searchKeyword = `%${keyword}%`; 
 
-        const [rows] = await db.execute(
-            `SELECT ID_Buku, Judul_Buku, Pengarang, Tahun
-             FROM buku 
-             WHERE Judul_Buku LIKE ? 
-             AND Tahun >= ? 
-             ORDER BY Tahun DESC 
-             LIMIT 10`, 
-            [searchKeyword, minYear]
-        );
-        return rows; // Mengembalikan array buku (bisa kosong, bisa isi banyak)
+        // Split Search: pecah keyword per kata agar toleran terhadap
+        // input multi-kata di mana salah satu kata tidak ditemukan.
+        const words = keyword.trim().split(/\s+/).filter(w => w.length >= 2);
+        if (words.length === 0) return [];
+
+        const conditions = words.map(() => 'Judul_Buku LIKE ?').join(' OR ');
+        const params     = words.map(w => '%' + w + '%');
+
+        const query = `
+            SELECT ID_Buku, Judul_Buku, Pengarang, Tahun
+            FROM buku
+            WHERE (${conditions})
+            AND Tahun >= ?
+            ORDER BY Tahun DESC
+            LIMIT 10
+        `;
+
+        const [rows] = await db.execute(query, [...params, minYear]);
+        return rows;
     } catch (error) {
         console.error("[DB ERROR] cariBukuByJudul:", error.message);
-        return []; // Return array kosong jika error
+        return [];
     }
 }
 
 
-// --- 2. AMBIL DETAIL LENGKAP BUKU & STATUS (JOIN 3 TABEL) ---
 async function getDetailBukuLengkap(idBuku) {
     try {
         // Query ini melakukan 3 hal:
@@ -124,21 +129,28 @@ async function cariBukuByPengarang(keyword) {
     try {
         const currentYear = new Date().getFullYear();
         const minYear = currentYear - 20;
-        const searchKeyword = `%${keyword}%`; 
 
-        const [rows] = await db.execute(
-            `SELECT ID_Buku, Judul_Buku, Pengarang, Tahun
-             FROM buku 
-             WHERE Pengarang LIKE ?  /* <--- Bedanya cuma di sini */
-             AND Tahun >= ? 
-             ORDER BY Tahun DESC 
-             LIMIT 10`, 
-            [searchKeyword, minYear]
-        );
-        return rows; 
+        // Split Search: pecah nama pengarang per kata.
+        const words = keyword.trim().split(/\s+/).filter(w => w.length >= 2);
+        if (words.length === 0) return [];
+
+        const conditions = words.map(() => 'Pengarang LIKE ?').join(' OR ');
+        const params     = words.map(w => '%' + w + '%');
+
+        const query = `
+            SELECT ID_Buku, Judul_Buku, Pengarang, Tahun
+            FROM buku
+            WHERE (${conditions})
+            AND Tahun >= ?
+            ORDER BY Tahun DESC
+            LIMIT 10
+        `;
+
+        const [rows] = await db.execute(query, [...params, minYear]);
+        return rows;
     } catch (error) {
         console.error("[DB ERROR] cariBukuByPengarang:", error.message);
-        return []; 
+        return [];
     }
 }
 
@@ -235,3 +247,4 @@ module.exports = {
     cariAnggotaByTelepon,
     getAnggotaByNim
 };
+

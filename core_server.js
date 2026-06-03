@@ -24,7 +24,7 @@ const path = require('path'); // Bawaan node.js, biar path folder aman
 
 // HUMAN MODE
 // Konfigurasi Admin & Gateway
-const WA_GATEWAY_URL = 'http://127.0.0.1:3002/send-direct';
+const WA_GATEWAY_URL = process.env.WA_GATEWAY_URL || 'http://127.0.0.1:3002/send-direct';
 // Ganti dengan nomor Anda yang dipakai untuk scan bot (format @c.us)
 const ADMIN_NUMBER = process.env.ADMIN_WA_NUMBER;
 
@@ -35,6 +35,7 @@ const ADMIN_NUMBER = process.env.ADMIN_WA_NUMBER;
 const Groq = require("groq-sdk");
 
 const dbService = require('./db_service');
+const { findBestMatch } = require('./levenshtein');
 const { db, run, get, all, getLinkedUser, saveLinkedUser } = require('./analytics_db'); // <--- PASTIKAN ADA INI
 const analyticsDb = require('./analytics_db');
 
@@ -1084,6 +1085,7 @@ const createResponse = async (message, from, userName, finalNumber) => {
                 
                 reply += `Silakan ketik *ID BUKU* (misal: ${limitTampil[0].ID_Buku}) untuk melihat detail & stok.\n`;
                 reply += `Atau ketik kata kunci lain untuk mencari ulang.`;
+                reply += `\n\nKetik *MENU* untuk layanan lain.`;
 
                 return { 
                     reply_message: reply,
@@ -1201,120 +1203,199 @@ const createResponse = async (message, from, userName, finalNumber) => {
         return { reply_message: responsesData.flow_messages.invalid_menu_selection + responsesData.system_commands.menu };
     }
 
-    // --- 7. AI Fallback (GROQ) ---
+    // --- 7. LEVENSHTEIN DISTANCE (Toleransi Typo Perintah Menu) ---
+    // Dieksekusi sebelum AI fallback untuk mengenali perintah menu
+    // yang mengandung typo ringan (maks 1-2 karakter).
+    const MENU_KEYWORDS = {
+        'menu'           : () => { userSession.state = 'main_menu'; return { reply_message: [responsesData.system_commands.menu] }; },
+        'cari buku'      : () => { userSession.state = 'waiting_for_book_id'; return { reply_message: responsesData.flow_messages.prompt_search_universal }; },
+        'pinjaman'       : () => { userSession.state = 'waiting_for_nim'; return { reply_message: responsesData.general_services['2'] }; },
+        'tata tertib'    : () => ({ reply_message: responsesData.general_services['3'] }),
+        'skbp'           : () => ({ reply_message: responsesData.general_services['4'] }),
+        'tugas akhir'    : () => ({ reply_message: responsesData.general_services['5'] }),
+        'koleksi digital': () => ({ reply_message: responsesData.general_services['6'] }),
+        'turnitin'       : () => ({ reply_message: responsesData.general_services['7'] }),
+        'bantuan'        : async () => {
+            await setUserMode(from, 'pilih_cabang');
+            return { reply_message: '🏢 *Pilih Cabang Perpustakaan*\n\nSilakan balas dengan angka sesuai lokasi kampus:\n\n*1.* Kampus Meruya\n*2.* Kampus Menteng\n*3.* Kampus Warung Buncit\n\nKetik *BATAL* untuk kembali ke menu utama' };
+        },
+        'selesai'        : () => { delete sessionHistory[from]; return { reply_message: responsesData.flow_messages.session_end_message }; }
+    };
+
+    const { match: levenMatch } = findBestMatch(normalizedMessage, Object.keys(MENU_KEYWORDS));
+    if (levenMatch) {
+        console.log('[LEVENSHTEIN] ' + normalizedMessage + ' -> ' + levenMatch);
+        return await MENU_KEYWORDS[levenMatch]();
+    }
+
+    // --- 8. AI Fallback (GROQ) ---
     if (isTooSimilarToStatic(normalizedMessage)) {
         return { reply_message: responsesData.flow_messages.ai_safety_warning };
     }
 
-    console.log("[AI] Meneruskan pesan ke GROQ (Context-Aware)...");
+        // Suntikkan waktu saat ini agar AI bisa menyapa sesuai konteks
+    const now = new Date().toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        weekday: 'long', hour: '2-digit', minute: '2-digit'
+    });
 
-    const systemContext = `
-    PERAN:
-    Anda adalah "PustakaBot", asisten virtual Perpustakaan Universitas Mercu Buana.
-    Tugas Anda adalah memahami pertanyaan user dan MENGARAHKAN mereka ke NOMOR MENU yang tepat.
-    Jangan menjawab detail panjang lebar jika informasi tersebut sudah tersedia di menu statis.
+    console.log('[AI] Meneruskan pesan ke GROQ (Admin Virtual)...');
 
-    PETA INFORMASI & MENU (Gunakan ini sebagai acuan):
-    
-    Menu "1" (Pencarian Buku):
-       - Gunakan jika user bertanya: "Cari buku X", "Ada novel Y?", "Cek stok buku", "Cara cari pengarang".
+    const systemContext = `Identitas:
+Nama: PustakaBot
+Peran: Admin virtual Perpustakaan Universitas Mercu Buana (UMB)
+Waktu saat ini: ${now} WIB
 
-    Menu "2" (Cek Status Anggota):
-       - Gunakan jika user bertanya: "Cek denda saya", "Buku apa yang saya pinjam", "Kapan harus balikin buku". (Butuh NIM).
-    
-    Menu "3" (Tata Tertib & Jam Buka):
-       - Gunakan jika user bertanya: "Jam buka perpustakaan?", "Hari sabtu buka?", "Boleh pinjam berapa buku?", "Aturan denda", "Syarat peminjaman".
-       - Konteks ringkas: Senin-Jumat (08.00-16.00), Sabtu (08.00-17.00). S1 max 8 buku, S2 max 10 buku.
-    
-    Menu "4" (Bebas Pustaka / SKBP):
-       - Gunakan jika user bertanya: "Cara bebas pustaka", "Link SKBP", "Syarat wisuda", "Formulir bebas pinjaman".
-       - Mencakup link untuk Kampus Meruya, Menteng, dan Warung Buncit.
-    
-    Menu "5" (Penyerahan Tugas Akhir / TA):
-       - Gunakan jika user bertanya: "Upload TA dimana?", "Link penyerahan skripsi", "Format PDF TA", "Template skripsi", "Syarat yudisium".
-       - Mencakup link upload online dan aturan hardcopy untuk S3.
-    
-    Menu "6" (E-Resources & Jurnal Online):
-       - Gunakan jika user bertanya: "Cara akses jurnal", "Password Emerald/IEEE", "Cari referensi online", "E-book ProQuest".
-       - Mencakup akses ke GALE, Emerald, IEEE, ProQuest, EBSCO, dan Repository Universitas Mercu Buana.
+Kamu adalah admin perpustakaan UMB yang ramah, informatif, dan komunikatif.
+Jawab pertanyaan layaknya admin manusia sungguhan - natural, hangat, tidak kaku - namun tetap sopan dan profesional.
+Gunakan Bahasa Indonesia yang baik. Boleh sesekali menggunakan sapaan seperti "Halo!", "Tentu!", "Siap!" agar terasa lebih manusiawi.
 
-    Menu "7" (Layanan Cek Similarity (Turnitin) Tugas Akhir):
-       - Gunakan jika user bertanya: "cek turnitin", "similarity", "turnitin studio", "turnitin draft coach", "plagiarisme".
-       - Mencakup informasi seputar cek similarity atau plagiarisme menggunakan turnitin studio. diwajibkan sebagai salah satu syarat sidang fakultas ekonomi dan bisnis.
+=== PENGETAHUAN FAKTUAL (Gunakan HANYA informasi ini, jangan mengarang) ===
 
-    ATURAN MENJAWAB:
-    1. Jawablah dengan ramah dan ringkas (maksimal 2 kalimat).
-    2. JIKA pertanyaan user cocok dengan salah satu menu di atas, KATAKAN: "Untuk informasi tersebut, silakan ketik angka *[NOMOR]*".
-       - Contoh: "Untuk panduan upload Tugas Akhir, silakan ketik angka *4*."
-       - Contoh: "Jam layanan kami tersedia di menu Tata Tertib. Silakan ketik angka *2*."
-    3. JIKA user hanya menyapa (Halo/Pagi), tawarkan bantuan dan arahkan ketik *MENU* dan juga jawab sesuai waktu jika user mengirim saat malam jawab dengan selamat malam atau semacamnya.
-    4. PENANGANAN INPUT TIDAK RELEVAN (GIBBERISH / LOREM IPSUM / LUAR TOPIK):
-       - JIKA user mengirim teks acak (seperti Lorem Ipsum), teks tidak bermakna, atau topik di luar perpustakaan (misal: resep masakan, politik):
-       - JANGAN mencoba mengartikannya.
-       - JANGAN minta maaf berlebihan (misal: "Mohon maaf saya tidak dapat memahami bla bla").
-       - JAWABLAH DENGAN TEGAS & SINGKAT dan arahkan user untuk ke kembali ke MENU.
+JAM OPERASIONAL:
+- Senin - Jumat: 08.00 - 16.00 WIB
+- Sabtu: 08.00 - 17.00 WIB
+- Minggu & Hari Libur Nasional: Tutup
 
-    Gaya Bahasa: Sopan, Formal, Bahasa Indonesia yang baik.
-    `;
+KETENTUAN PEMINJAMAN - Kampus Meruya:
+- Mahasiswa S1: maks. 8 judul, masa pinjam 14 hari
+- Mahasiswa S2: maks. 10 judul, masa pinjam 14 hari
+- Mahasiswa S3: maks. 12 judul, masa pinjam 14 hari
+- Dosen Tetap & Tendik: maks. 12 judul, masa pinjam 90 hari
+- Koleksi terbatas/favorit: masa pinjam 7 hari
+- Koleksi CD Buku: masa pinjam 2 hari
+- Tidak tersedia layanan perpanjangan masa pinjam
+- Peminjaman ulang eksemplar yang sama: tunggu 1x24 jam setelah pengembalian
+
+KETENTUAN PEMINJAMAN - Kampus Menteng & Warung Buncit:
+- Mahasiswa: maks. 4 judul, masa pinjam 14 hari
+- Dosen Tetap & Tendik: maks. 6 judul, masa pinjam 90 hari
+
+SYARAT PEMINJAMAN UMUM:
+- Wajib memiliki KTM aktif dan bebas denda
+- Mahasiswa yang sudah mengajukan SKBP tidak boleh meminjam lagi
+
+SKBP (Surat Keterangan Bebas Perpustakaan):
+- Wajib untuk syarat sidang TA dan pengambilan ijazah
+- Syarat: bebas pinjaman buku/loker/tas, bebas denda, bebas tanggungan hilang
+- SKBP dikirim otomatis via email, proses maks. 1x24 jam (tidak termasuk Minggu & libur nasional)
+- Setelah SKBP terbit, tidak boleh meminjam lagi
+- Link pengajuan:
+  Kampus Meruya      : bit.ly/skbp_meruya
+  Kampus Menteng     : bit.ly/skbp_menteng2
+  Kampus Warung Buncit: bit.ly/skbp_warbun
+
+PENYERAHAN TUGAS AKHIR (TA):
+- Wajib untuk semua mahasiswa sebagai syarat kelulusan/yudisium
+- Template TA: https://bit.ly/templateTA25
+- Format file: PDF tanpa watermark dan tanpa password
+- Link upload:
+  Kampus Meruya      : https://bit.ly/ta_meruya
+  Kampus Menteng     : https://bit.ly/ta_menteng
+  Kampus Warung Buncit: https://bit.ly/ta_warbun
+- Khusus Program Doktor (S3): wajib hardcover, diserahkan langsung ke perpustakaan
+- Setelah TA diterima, perpustakaan kirim Form Tanda Terima ke email mahasiswa
+- Info lebih lanjut: https://mercubuana.ac.id/biro-perpustakaan
+
+E-RESOURCES:
+- GALE (Cengage): jurnal bidang Ekonomi, Sosial/Humaniora, Teknik
+- Emerald Insight: jurnal bidang Ekonomi (Akuntansi & Manajemen)
+- IEEE Xplore: jurnal bidang Elektro dan Komputer
+- ProQuest Ebook Central: e-book semua bidang
+- EBSCO eBooks: e-book semua bidang
+- Cambridge University Press (Core): e-book semua bidang
+- Repository UMB: akses TA dan karya ilmiah UMB
+- Link akses: https://mercubuana.ac.id/biro-perpustakaan/e-jurnal-dan-e-book-internasional
+- Panduan akses: https://mercubuana.ac.id/biro-perpustakaan/panduan-akses-e-resource
+- Info username & password hubungi pustakawan:
+  Kampus Meruya      : 082311232229
+  Kampus Menteng     : 085219542943
+  Kampus Warung Buncit: 082135935955
+
+UJI SIMILARITY TURNITIN:
+- Untuk verifikasi orisinalitas TA sebelum sidang
+- Format file: MS Word (.doc), gabungkan Cover + Abstrak + Bab 1, 4, 5
+- Wajib lampirkan bukti cek mandiri via Turnitin Draft Coach (panduan: s.id/TutorialTurnitinDC)
+- Gratis 2 kali, pengajuan ke-3 dst: Rp25.500 via BNI 1976765677 (Yayasan Menara Bhakti)
+- Hasil dikirim ke email dalam 3 hari kerja
+- Jika similarity < 30%: dapat Surat Keterangan Hasil Uji Turnitin
+- Jika similarity > 30%: hanya dapat hasil uji untuk revisi
+- Cakupan layanan Perpustakaan Pusat:
+  FEB (S1/S2/S3): dilayani Perpustakaan Pusat
+  D3: tidak diwajibkan
+  Fakultas lain: melalui TU Fakultas masing-masing
+- Link upload: https://bit.ly/cek_similarity_perpus
+
+KONTAK PERPUSTAKAAN:
+- Website: https://mercubuana.ac.id/biro-perpustakaan
+- Kampus Meruya      : 082311232229
+- Kampus Menteng     : 085219542943
+- Kampus Warung Buncit: 082135935955
+
+=== ATURAN WAJIB ===
+
+1. JAWAB LANGSUNG dan informatif. Jangan hanya mengarahkan ke menu jika kamu sudah punya jawabannya.
+   Contoh SALAH : "Untuk info jam buka, silakan ketik *3*."
+   Contoh BENAR : "Perpustakaan buka Senin-Jumat jam 08.00-16.00 WIB, Sabtu 08.00-17.00 WIB."
+
+2. SETELAH menjawab, SELALU tambahkan arahan ke nomor menu yang relevan di akhir jawaban (dalam bubble yang sama).
+   Gunakan format: "Untuk info selengkapnya ketik *[NOMOR]*"
+   Peta menu untuk arahan:
+   - Topik tata tertib, jam buka, ketentuan peminjaman -> ketik *3*
+   - Topik SKBP, bebas pustaka, syarat wisuda          -> ketik *4*
+   - Topik tugas akhir, skripsi, yudisium              -> ketik *5*
+   - Topik e-resources, jurnal, e-book                 -> ketik *6*
+   - Topik turnitin, similarity, plagiarisme           -> ketik *7*
+   - Topik pencarian buku                              -> ketik *1*
+   - Topik cek pinjaman, denda                         -> ketik *2*
+   Jika topik tidak cocok dengan menu manapun, tidak perlu tambahkan arahan.
+
+3. TIGA HAL INI harus diarahkan ke sistem, bukan dijawab AI:
+   - Cari buku spesifik / cek stok buku  -> Silakan ketik *1* untuk mencari buku.
+   - Cek status pinjaman / denda pribadi -> Silakan ketik *2* dan masukkan NIM kamu.
+   - Minta bicara dengan pustakawan      -> Silakan ketik *8* untuk terhubung ke pustakawan.
+
+3. LARANGAN KERAS:
+   - DILARANG mengarang informasi yang tidak ada di pengetahuan faktual di atas
+   - DILARANG menjawab topik di luar perpustakaan UMB (politik, resep, hiburan, dll.)
+   - DILARANG menyebutkan ketersediaan atau lokasi buku spesifik (data ada di database)
+   - DILARANG memberikan jawaban lebih dari 4 kalimat
+   - DILARANG menggunakan kata "Mohon maaf" lebih dari sekali dalam satu jawaban
+
+4. Jika pertanyaan sama sekali di luar konteks perpustakaan UMB, tolak dengan sopan dan singkat:
+   "Wah, itu di luar area saya nih. Saya hanya bisa bantu seputar layanan Perpustakaan UMB. Ada yang bisa saya bantu?"
+
+5. Sesuaikan sapaan dengan waktu saat ini:
+   - 05.00-11.00: Selamat pagi
+   - 11.00-15.00: Selamat siang
+   - 15.00-18.00: Selamat sore
+   - 18.00-05.00: Selamat malam
+`;
 
     const maxRetries = 3;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            
             const chatCompletion = await groq.chat.completions.create({
-                model: "llama-3.3-70b-versatile", 
-                
+                model: 'llama-3.3-70b-versatile',
                 messages: [
-                    { role: "system", content: systemContext }, // Instruksi Sistem
-                    { role: "user", content: message }          // Pesan User
+                    { role: 'system', content: systemContext },
+                    { role: 'user',   content: message }
                 ],
-                temperature: 0.5, // 0.5 agar jawaban stabil/tidak halusinasi
-                max_tokens: 300,  // Batas panjang jawaban
+                temperature: 0.4,
+                max_tokens: 250,
             });
 
             const replyText = chatCompletion.choices[0]?.message?.content;
-            
-            if (replyText) {
-                return { reply_message: replyText };
-            } else {
-                throw new Error("Empty AI Response");
-            }
+            if (replyText) return { reply_message: replyText };
+            throw new Error('Empty AI Response');
 
         } catch (error) {
-            console.error("Gagal memanggil Groq AI:", error);
-            return { reply_message: "⚠️ Maaf, sistem AI sedang sibuk. Silakan ketik *MENU* untuk menggunakan layanan manual." };
+            console.error('[AI] Attempt ' + attempt + ' gagal:', error.message);
+            if (attempt === maxRetries) {
+                return { reply_message: '⚠️ Maaf, sistem AI sedang sibuk. Silakan ketik *MENU* untuk menggunakan layanan manual.' };
+            }
+            await new Promise(r => setTimeout(r, 1000 * attempt));
         }
-
-        // ---- BLOCK CODE UNTUK GEMINI ----
-        //     const result = await genAI.models.generateContent({
-        //         model: "gemini-1.5-flash-8b",
-        //         contents: [{ role: "user", parts: [{ text: message }] }],
-        //         config: {
-        //             systemInstruction: systemContext,
-        //             maxOutputTokens: 200, // Batasi panjang jawaban biar tidak cerewet
-        //         },
-        //     });
-
-        //     const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-        //     if (text) return { reply_message: text };
-        //     throw new Error("Empty AI response");
-        // } catch (error) {
-        //     // Cek spesifik Error 429 (Kuota Habis)
-        //     if (error.status === 429 || error.message.includes('429')) {
-        //         console.warn("[GEMINI] Kuota Habis (Rate Limit Hit).");
-        //         return { 
-        //             reply_message: "⚠️ _Layanan AI sedang sibuk/penuh._\nSilakan gunakan menu manual dengan mengetik *MENU*." 
-        //         };
-        //     }
-
-        //     // Retry hanya jika error server (503/500), bukan error kuota
-        //     if (error.status === 503 && attempt < maxRetries) {
-        //         await delay(2000 * Math.pow(2, attempt - 1));
-        //     } else {
-        //         console.error("Gagal memanggil Gemini AI:", error);
-        //         return { reply_message: "Maaf, sedang ada gangguan pada sistem AI kami." };
-        //     }
-        // }
     }
 };
 
@@ -1431,7 +1512,7 @@ app.post("/process-message", async (req, res) => {
         // A. Perintah Admin untuk mengakhiri sesi obrolan manual
         if (cleanText === '!bot') {
             await setUserMode(from, 'bot');
-            return res.json({ reply: "🤖 *Sistem:* Mode Pustakawan diakhiri. Bot aktif kembali.\nKetik *Menu* untuk melihat layanan." });
+            return res.json({ reply: "*Sistem:* Mode Pustakawan diakhiri. Chatbot aktif kembali.\n\nKetik *Menu* untuk melihat layanan." });
         }
 
         // B. Jika user SEDANG dalam mode Human, Bot DIAM (cegat pesan disini)
@@ -1464,7 +1545,7 @@ app.post("/process-message", async (req, res) => {
             await setUserMode(from, 'pilih_cabang');
 
             return res.json({ 
-                reply: "🏢 *Pilih Cabang Perpustakaan*\n\nSilakan balas dengan angka sesuai lokasi kampus yang ingin Anda hubungi:\n\n*1.* Kampus Meruya\n*2.* Kampus Menteng\n*3.* Kampus Warung Buncit\n\nKetik *BATAL* untuk kembali ke menu utama" 
+                reply: "*Pilih Cabang Perpustakaan*\n\nSilakan balas dengan angka sesuai lokasi kampus yang ingin Anda hubungi:\n\n*1.* Kampus Meruya\n*2.* Kampus Menteng\n*3.* Kampus Warung Buncit\n\nKetik *BATAL* untuk kembali ke menu utama" 
             });
         }
 
@@ -1475,7 +1556,7 @@ app.post("/process-message", async (req, res) => {
             if (cleanText === 'batal' || cleanText === 'menu') {
                 await setUserMode(from, 'bot');
                 return res.json({ 
-                    reply: "✅ *Dibatalkan.*\n\nAnda telah kembali ke menu utama. Silakan ketik *Menu* untuk melihat layanan kembali." 
+                    reply: "*Dibatalkan* Anda telah kembali ke menu utama. Silakan ketik *Menu* untuk melihat layanan kembali." 
                 });
             }
 
@@ -1501,7 +1582,7 @@ app.post("/process-message", async (req, res) => {
 
                 // Balasan bot ke Mahasiswa
                 return res.json({ 
-                    reply: "👨‍💻 *Menghubungkan ke Pustakawan...*\n\nMohon tunggu sebentar, pesan Anda akan segera dibalas oleh staf kami secara manual.\n_(Sistem Bot dinonaktifkan sementara)_" 
+                    reply: "👨‍💻 *Menghubungkan ke Pustakawan...*\n\nAnda sedang terhubung dengan layanan bantuan pustakawan.\n\n*Sembari menunggu admin membalas, silakan kirimkan pertanyaan yang ingin Anda tanyakan. Admin kami akan merespons sesegera mungkin.*\n\n\n_Ketik *!bot* untuk kembali ke layanan chatbot_" 
                 });
 
             } 
