@@ -6,89 +6,178 @@
     <title>Admin Panel Chatbot Perpustakaan UMB</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f4f6f9; }
+        :root {
+            --brand: #2563eb;
+            --brand-dark: #1d4ed8;
+            --ink-900: #0f172a;
+            --ink-700: #334155;
+            --ink-500: #64748b;
+        }
+
+        * { -webkit-font-smoothing: antialiased; }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: #f1f5f9;
+            background-image: radial-gradient(at 100% 0%, rgba(37, 99, 235, 0.06) 0px, transparent 50%),
+                              radial-gradient(at 0% 100%, rgba(99, 102, 241, 0.05) 0px, transparent 50%);
+            color: var(--ink-900);
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+        ::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
         textarea::-webkit-scrollbar, .overflow-y-auto::-webkit-scrollbar { width: 8px; }
-        textarea::-webkit-scrollbar-thumb, .overflow-y-auto::-webkit-scrollbar-thumb { background-color: #3b82f6; border-radius: 4px; }
-        .sidebar { background-color: #1f2937; box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1); }
-        .sidebar-link.active { background-color: #374151; border-left: 4px solid #3b82f6; }
-        .btn-primary:hover, .btn-danger:hover { opacity: 0.9; transform: translateY(-1px); }
+        textarea::-webkit-scrollbar-thumb, .overflow-y-auto::-webkit-scrollbar-thumb { background-color: var(--brand); border-radius: 4px; }
+
+        /* Sidebar */
+        .sidebar {
+            background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+            box-shadow: 4px 0 24px rgba(15, 23, 42, 0.18);
+        }
+        .sidebar-link {
+            position: relative;
+            color: #cbd5e1;
+            border-left: 3px solid transparent;
+        }
+        .sidebar-link:hover { background-color: rgba(255, 255, 255, 0.06); color: #fff; }
+        .sidebar-link.active {
+            background-color: rgba(37, 99, 235, 0.18);
+            border-left: 3px solid var(--brand);
+            color: #fff;
+        }
+        .sidebar-link svg { flex-shrink: 0; }
+
+        /* Buttons */
+        .btn-primary, .btn-danger { transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease; }
+        .btn-primary:hover, .btn-danger:hover { opacity: 0.95; transform: translateY(-1px); box-shadow: 0 8px 18px rgba(37, 99, 235, 0.25); }
+
+        /* Cards */
+        .card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.04);
+            transition: transform .2s ease, box-shadow .2s ease;
+        }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(15, 23, 42, 0.10); }
+
+        /* Table rows */
+        tbody tr { transition: background-color .15s ease; }
+
+        /* Modal animation */
+        .modal-panel { animation: modalIn .2s ease; }
+        @keyframes modalIn { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+        /* Fade-in for page sections */
+        .fade-in { animation: fadeIn .3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="flex h-screen">
 
     <aside class="sidebar w-64 p-4 text-white flex flex-col z-10 relative">
-        <div class="text-xl font-bold mb-8 text-blue-400">ONLINE LIBRARY SYSTEM (UMB)</div>
-        <nav class="flex-grow">
-            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="dashboard">
+        <div class="flex items-center gap-3 mb-8 px-2">
+            <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg flex-shrink-0">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+            </div>
+            <div class="leading-tight">
+                <div class="text-sm font-extrabold tracking-wide text-white">ONLINE LIBRARY</div>
+                <div class="text-[11px] text-blue-300 font-medium uppercase tracking-widest">System UMB</div>
+            </div>
+        </div>
+        <nav class="flex-grow space-y-1">
+            <h2 class="text-[10px] uppercase text-gray-500 font-bold mb-2 px-3 tracking-widest">Analitik</h2>
+            <a href="#" class="sidebar-link flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out" data-category="dashboard">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
                 Dashboard
             </a>
-            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="history">
+            <a href="#" class="sidebar-link flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out" data-category="history">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg>
                 Riwayat Chat Detail
             </a>
 
-            <h2 class="text-xs uppercase text-gray-400 font-semibold mb-2 mt-4">MASTER DATA</h2>
-            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="system_commands">
-                System Commands (Menu Utama)
+            <h2 class="text-[10px] uppercase text-gray-500 font-bold mb-2 mt-6 px-3 tracking-widest">Master Data</h2>
+            <a href="#" class="sidebar-link flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out" data-category="system_commands">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+                System Commands
             </a>
-            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="flow_messages">
-                Pesan Alur & System
+            <a href="#" class="sidebar-link flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out" data-category="flow_messages">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path></svg>
+                Pesan Alur &amp; System
             </a>
-            <a href="#" class="sidebar-link block py-2 px-3 rounded-lg text-sm transition duration-150 ease-in-out hover:bg-gray-700" data-category="general_services">
+            <a href="#" class="sidebar-link flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out" data-category="general_services">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 Layanan Umum
             </a>
         </nav>
+        <div class="mt-4 pt-4 border-t border-white/10 px-3">
+            <div class="flex items-center gap-2 text-xs text-gray-400">
+                <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                Bot Online
+            </div>
+        </div>
     </aside>
 
     <div class="flex-1 p-8 overflow-auto relative">
         
-        <header class="mb-6 flex justify-between items-center">
-            <h1 id="page-title" class="text-3xl font-extrabold text-gray-900">Dashboard Utama</h1>
+        <header class="mb-6 flex flex-wrap gap-4 justify-between items-center">
+            <div>
+                <h1 id="page-title" class="text-3xl font-extrabold text-gray-900 tracking-tight">Dashboard Utama</h1>
+                <p class="text-sm text-gray-500 mt-1">Panel administrasi chatbot Perpustakaan UMB</p>
+            </div>
             <div class="flex space-x-3" id="action-buttons">
-                <button id="btn-add-new-key" class="hidden btn-primary flex items-center bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
+                <button id="btn-add-new-key" class="hidden btn-primary flex items-center bg-green-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md transition duration-200">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                     Tambah Keyword Baru
                 </button>
-                <button id="btn-save-all" class="hidden btn-primary bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200">
+                <button id="btn-save-all" class="hidden btn-primary flex items-center bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md transition duration-200">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                     Simpan Semua Perubahan
                 </button>
             </div>
         </header>
 
-        <div id="status-message" class="hidden mb-4 p-3 rounded-lg text-sm font-semibold"></div>
+        <div id="status-message" class="hidden mb-4 p-3 rounded-xl text-sm font-semibold"></div>
 
-        <main id="main-dashboard" class="hidden">
+        <main id="main-dashboard" class="hidden fade-in">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex items-center">
-                    <div class="p-3 rounded-full bg-blue-100 text-blue-600 mr-4">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+                <div class="stat-card card p-6 flex items-center">
+                    <div class="p-3.5 rounded-xl bg-blue-100 text-blue-600 mr-4">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
                     </div>
                     <div>
                         <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">Total Pesan</h3>
-                        <p class="text-2xl font-bold text-gray-800" id="stat-total">0</p>
+                        <p class="text-3xl font-extrabold text-gray-800 mt-0.5" id="stat-total">0</p>
                     </div>
                 </div>
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex items-center">
-                    <div class="p-3 rounded-full bg-indigo-100 text-indigo-600 mr-4">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                <div class="stat-card card p-6 flex items-center">
+                    <div class="p-3.5 rounded-xl bg-indigo-100 text-indigo-600 mr-4">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                     </div>
                     <div>
                         <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">User Unik</h3>
-                        <p class="text-2xl font-bold text-gray-800" id="stat-users">0</p>
+                        <p class="text-3xl font-extrabold text-gray-800 mt-0.5" id="stat-users">0</p>
                     </div>
                 </div>
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 flex items-center">
-                    <div class="p-3 rounded-full bg-green-100 text-green-600 mr-4">
-                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div class="stat-card card p-6 flex items-center">
+                    <div class="p-3.5 rounded-xl bg-green-100 text-green-600 mr-4">
+                        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </div>
                     <div>
                         <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">Hari Ini</h3>
-                        <p class="text-2xl font-bold text-gray-800" id="stat-today">0</p>
+                        <p class="text-3xl font-extrabold text-gray-800 mt-0.5" id="stat-today">0</p>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-8">
+            <div class="card p-6 mb-8">
                 <h3 class="text-lg font-semibold text-gray-700 mb-4">📈 Tren Aktivitas Chat (7 Hari Terakhir)</h3>
                 <div class="relative h-64 w-full">
                     <canvas id="trafficChart"></canvas>
@@ -96,13 +185,13 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div class="card p-6">
                     <h3 class="text-lg font-semibold text-gray-700 mb-4">⏰ Jam Tersibuk (Peak Hours)</h3>
                     <div class="relative h-64 w-full">
                         <canvas id="peakHourChart"></canvas>
                     </div>
                 </div>
-                <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div class="card p-6">
                     <h3 class="text-lg font-semibold text-gray-700 mb-4">📚 Status Koleksi Perpustakaan</h3>
                     <div class="relative h-64 w-full flex justify-center">
                         <canvas id="libraryChart"></canvas>
@@ -110,48 +199,48 @@
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-200">
+            <div class="card overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-100">
                     <h3 class="text-lg font-semibold text-gray-700">🏆 Top 5 Pemustaka Teraktif</h3>
                 </div>
                 <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+                    <thead class="bg-gray-50/80">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Pengguna (WA)</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Chat</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rank</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID Pengguna (WA)</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Chat</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
                     </thead>
-                    <tbody id="top-users-body" class="bg-white divide-y divide-gray-200"></tbody>
+                    <tbody id="top-users-body" class="bg-white divide-y divide-gray-100"></tbody>
                 </table>
             </div>
         </main>
 
-        <main id="main-history" class="hidden">
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+        <main id="main-history" class="hidden fade-in">
+            <div class="card overflow-hidden">
+                <div class="p-6 border-b border-gray-100 flex flex-wrap gap-4 justify-between items-center">
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">Log Percakapan Mahasiswa</h2>
                         <p class="text-sm text-gray-500">Daftar pesan masuk dan balasan chatbot secara real-time</p>
                     </div>
-                    <button onclick="fetchChatHistory()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <button onclick="fetchChatHistory()" class="btn-primary bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                         Refresh Data
                     </button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                        <thead class="bg-gray-50/80">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waktu</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nomor WA</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Konteks</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pesan Masuk</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balasan Bot</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Waktu</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Nomor WA</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Konteks</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pesan Masuk</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Balasan Bot</th>
                             </tr>
                         </thead>
-                        <tbody id="history-body" class="bg-white divide-y divide-gray-200 text-sm">
+                        <tbody id="history-body" class="bg-white divide-y divide-gray-100 text-sm">
                             <tr><td colspan="5" class="px-6 py-10 text-center text-gray-500 italic">Memuat data riwayat...</td></tr>
                         </tbody>
                     </table>
@@ -159,22 +248,25 @@
             </div>
         </main>
 
-        <main id="main-editor" class="bg-white p-6 rounded-xl shadow-xl hidden">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-gray-700" id="table-heading">Daftar Respons</h2>
-                <input type="text" id="search-input" placeholder="Cari Keyword..." class="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+        <main id="main-editor" class="card p-6 hidden fade-in">
+            <div class="flex flex-wrap gap-4 justify-between items-center mb-5">
+                <h2 class="text-xl font-bold text-gray-800" id="table-heading">Daftar Respons</h2>
+                <div class="relative">
+                    <svg class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" id="search-input" placeholder="Cari Keyword..." class="pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition w-64">
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
+                    <thead class="bg-gray-50/80">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">No</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-3/12">Keyword / Kunci</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-6/12">Nilai Respons</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/12">Aksi</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/12">No</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-3/12">Keyword / Kunci</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-6/12">Nilai Respons</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-2/12">Aksi</th>
                         </tr>
                     </thead>
-                    <tbody id="response-table-body" class="bg-white divide-y divide-gray-200">
+                    <tbody id="response-table-body" class="bg-white divide-y divide-gray-100">
                         <tr><td colspan="4" class="text-center py-4 text-gray-500">Memuat data...</td></tr>
                     </tbody>
                 </table>
@@ -183,38 +275,38 @@
         
     </div>
 
-    <div id="edit-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-6">
-            <h2 id="modal-title" class="text-2xl font-bold mb-4 text-gray-800">Edit Respons</h2>
+    <div id="edit-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-6">
+            <h2 id="modal-title" class="text-2xl font-bold mb-5 text-gray-800">Edit Respons</h2>
             <div class="mb-4">
-                <label for="modal-key" class="block text-sm font-medium text-gray-700">Keyword / Kunci</label>
-                <input type="text" id="modal-key" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm" disabled>
+                <label for="modal-key" class="block text-sm font-medium text-gray-700 mb-1">Keyword / Kunci</label>
+                <input type="text" id="modal-key" class="block w-full border border-gray-300 rounded-xl p-3 shadow-sm bg-gray-50 text-gray-500" disabled>
             </div>
-            <div class="mb-4">
-                <label for="modal-value" class="block text-sm font-medium text-gray-700">Nilai Respons</label>
-                <textarea id="modal-value" rows="10" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm"></textarea>
+            <div class="mb-5">
+                <label for="modal-value" class="block text-sm font-medium text-gray-700 mb-1">Nilai Respons</label>
+                <textarea id="modal-value" rows="10" class="block w-full border border-gray-300 rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"></textarea>
             </div>
-            <div class="flex justify-end space-x-4">
-                <button id="modal-cancel" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Batal</button>
-                <button id="modal-save" class="btn-primary bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Simpan</button>
+            <div class="flex justify-end space-x-3">
+                <button id="modal-cancel" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 px-5 rounded-xl transition duration-200">Batal</button>
+                <button id="modal-save" class="btn-primary bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-xl transition duration-200">Simpan</button>
             </div>
         </div>
     </div>
 
-    <div id="add-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-            <h2 class="text-2xl font-bold mb-4 text-gray-800">Tambah Keyword Baru</h2>
+    <div id="add-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 class="text-2xl font-bold mb-5 text-gray-800">Tambah Keyword Baru</h2>
             <div class="mb-4">
-                <label for="add-modal-key" class="block text-sm font-medium text-gray-700">Keyword Baru</label>
-                <input type="text" id="add-modal-key" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm">
+                <label for="add-modal-key" class="block text-sm font-medium text-gray-700 mb-1">Keyword Baru</label>
+                <input type="text" id="add-modal-key" class="block w-full border border-gray-300 rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
             </div>
-            <div class="mb-4">
-                <label for="add-modal-value" class="block text-sm font-medium text-gray-700">Nilai Respons</label>
-                <textarea id="add-modal-value" rows="5" class="mt-1 block w-full border border-gray-300 rounded-lg p-3 shadow-sm"></textarea>
+            <div class="mb-5">
+                <label for="add-modal-value" class="block text-sm font-medium text-gray-700 mb-1">Nilai Respons</label>
+                <textarea id="add-modal-value" rows="5" class="block w-full border border-gray-300 rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition"></textarea>
             </div>
-            <div class="flex justify-end space-x-4">
-                <button id="add-modal-cancel" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Batal</button>
-                <button id="add-modal-save" class="btn-primary bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Tambah</button>
+            <div class="flex justify-end space-x-3">
+                <button id="add-modal-cancel" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 px-5 rounded-xl transition duration-200">Batal</button>
+                <button id="add-modal-save" class="btn-primary bg-green-500 text-white font-semibold py-2.5 px-5 rounded-xl transition duration-200">Tambah</button>
             </div>
         </div>
     </div>

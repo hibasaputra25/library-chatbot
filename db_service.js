@@ -15,31 +15,42 @@ async function cariBukuById(idBuku) {
     }
 }
 
-// --- BARU: Cari Buku by Judul (Filter 20 Tahun & Limit 10) ---
+// --- Cari Buku by Judul (AND dulu, fallback OR jika kosong) ---
 async function cariBukuByJudul(keyword) {
     try {
         const currentYear = new Date().getFullYear();
         const minYear = currentYear - 20;
 
-        // Split Search: pecah keyword per kata agar toleran terhadap
-        // input multi-kata di mana salah satu kata tidak ditemukan.
         const words = keyword.trim().split(/\s+/).filter(w => w.length >= 2);
         if (words.length === 0) return [];
 
-        const conditions = words.map(() => 'Judul_Buku LIKE ?').join(' OR ');
-        const params     = words.map(w => '%' + w + '%');
+        const params = words.map(w => '%' + w + '%');
 
-        const query = `
+        // Coba AND dulu: semua kata harus ada di judul
+        const andConditions = words.map(() => 'Judul_Buku LIKE ?').join(' AND ');
+        const andQuery = `
             SELECT ID_Buku, Judul_Buku, Pengarang, Tahun
             FROM buku
-            WHERE (${conditions})
+            WHERE (${andConditions})
             AND Tahun >= ?
             ORDER BY Tahun DESC
             LIMIT 10
         `;
+        const [andRows] = await db.execute(andQuery, [...params, minYear]);
+        if (andRows.length > 0) return andRows;
 
-        const [rows] = await db.execute(query, [...params, minYear]);
-        return rows;
+        // Fallback OR: minimal satu kata cocok
+        const orConditions = words.map(() => 'Judul_Buku LIKE ?').join(' OR ');
+        const orQuery = `
+            SELECT ID_Buku, Judul_Buku, Pengarang, Tahun
+            FROM buku
+            WHERE (${orConditions})
+            AND Tahun >= ?
+            ORDER BY Tahun DESC
+            LIMIT 10
+        `;
+        const [orRows] = await db.execute(orQuery, [...params, minYear]);
+        return orRows;
     } catch (error) {
         console.error("[DB ERROR] cariBukuByJudul:", error.message);
         return [];
@@ -124,30 +135,42 @@ async function getDetailBukuLengkap(idBuku) {
     }
 }
 
-// --- BARU: Cari Buku by Pengarang ---
+// --- Cari Buku by Pengarang (AND dulu, fallback OR jika kosong) ---
 async function cariBukuByPengarang(keyword) {
     try {
         const currentYear = new Date().getFullYear();
         const minYear = currentYear - 20;
 
-        // Split Search: pecah nama pengarang per kata.
         const words = keyword.trim().split(/\s+/).filter(w => w.length >= 2);
         if (words.length === 0) return [];
 
-        const conditions = words.map(() => 'Pengarang LIKE ?').join(' OR ');
-        const params     = words.map(w => '%' + w + '%');
+        const params = words.map(w => '%' + w + '%');
 
-        const query = `
+        // Coba AND dulu: semua kata harus ada di nama pengarang
+        const andConditions = words.map(() => 'Pengarang LIKE ?').join(' AND ');
+        const andQuery = `
             SELECT ID_Buku, Judul_Buku, Pengarang, Tahun
             FROM buku
-            WHERE (${conditions})
+            WHERE (${andConditions})
             AND Tahun >= ?
             ORDER BY Tahun DESC
             LIMIT 10
         `;
+        const [andRows] = await db.execute(andQuery, [...params, minYear]);
+        if (andRows.length > 0) return andRows;
 
-        const [rows] = await db.execute(query, [...params, minYear]);
-        return rows;
+        // Fallback OR: minimal satu kata cocok
+        const orConditions = words.map(() => 'Pengarang LIKE ?').join(' OR ');
+        const orQuery = `
+            SELECT ID_Buku, Judul_Buku, Pengarang, Tahun
+            FROM buku
+            WHERE (${orConditions})
+            AND Tahun >= ?
+            ORDER BY Tahun DESC
+            LIMIT 10
+        `;
+        const [orRows] = await db.execute(orQuery, [...params, minYear]);
+        return orRows;
     } catch (error) {
         console.error("[DB ERROR] cariBukuByPengarang:", error.message);
         return [];

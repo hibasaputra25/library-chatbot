@@ -13,6 +13,12 @@ app.use(bodyParser.json());
 
 const client = new Client({
     authStrategy: new LocalAuth(),
+    // Memaksa pakai versi WhatsApp Web yang diketahui stabil.
+    // Mengatasi error "Execution context was destroyed" akibat WA Web reload saat injeksi.
+    webVersionCache: {
+        type: 'remote',
+        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1041063798-alpha.html'
+    },
     puppeteer: {
         headless: true,
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
@@ -93,9 +99,9 @@ client.on('message', async (msg) => {
             
             // SEMENTARA PAKAI INI YANG SIMPEL DULU UNTUK TES:
             if (Array.isArray(replyData)) {
-                 for (const txt of replyData) await client.sendMessage(from, txt);
+                 for (const txt of replyData) await client.sendMessage(from, txt, { linkPreview: false });
             } else {
-                 await client.sendMessage(from, replyData);
+                 await client.sendMessage(from, replyData, { linkPreview: false });
             }
             console.log(`✅ [BALASAN TERKIRIM]`);
         }
@@ -154,7 +160,7 @@ app.post('/send-direct', async (req, res) => {
         console.log(`[DEBUG] Tipe data 'to':`, typeof to);
         // -----------------------------
 
-        await client.sendMessage(to, message);
+        await client.sendMessage(to, message, { linkPreview: false });
 
         console.log(`[GATEWAY] Berhasil mengirim pesan direct ke ${to}`);
         return res.status(200).json({ status: "success", message: "Pesan terkirim" });

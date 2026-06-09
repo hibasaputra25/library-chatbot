@@ -574,7 +574,7 @@ async function handleUniversalSearch(keyword, userSession) {
 async function handleMemberCheck(nim, userSession) {
     // Validasi format NIM (Misal harus angka)
     if (!/^\d+$/.test(nim)) {
-        return { reply_message: "⚠️ Format NIM salah. Harap masukkan angka saja." };
+        return { reply_message: "⚠️ Format NIM salah. Harap masukkan angka saja.\n\nKetik *MENU* untuk layanan lain." };
     }
 
     const data = await dbService.cekStatusAnggota(nim);
@@ -991,9 +991,62 @@ const createResponse = async (message, from, userName, finalNumber) => {
             }
 
             // Cek apakah user mengetik angka '1' lagi (Iseng/Lupa)
-            // Supaya tidak error/looping aneh, kita anggap dia minta panduan ulang
             if (inputUser === '1') {
-                return { reply_message: "Silakan ketik Judul, Pengarang, atau ID Buku yang Anda cari." };
+                return { reply_message: "Silakan ketik Judul, Pengarang, atau ID Buku yang Anda cari.\n\n_Tips: Gunakan prefix untuk hasil lebih spesifik:_\n• *judul: nama buku*\n• *pengarang: nama pengarang*" };
+            }
+
+            // ============================================================
+            // DETEKSI PREFIX: judul: ... / pengarang: ...
+            // ============================================================
+            const prefixJudul     = inputUser.match(/^judul\s*:\s*(.+)/i);
+            const prefixPengarang = inputUser.match(/^pengarang\s*:\s*(.+)/i);
+
+            if (prefixJudul) {
+                const keyword = prefixJudul[1].trim();
+                if (keyword.length < 3) {
+                    return { reply_message: `⚠️ Kata kunci terlalu pendek. Masukkan minimal 3 huruf setelah *judul:*` };
+                }
+                const hasil = await dbService.cariBukuByJudul(keyword);
+                if (hasil.length === 0) {
+                    return { reply_message: `⚠️ *Tidak ditemukan* buku dengan judul mengandung *"${keyword}"*.
+
+Coba kata kunci lain atau ketik *MENU*.`, context: 'Pencarian Buku' };
+                }
+                const limitTampil = hasil.slice(0, 10);
+                let reply = `📚 *HASIL PENCARIAN JUDUL*
+Kata kunci: _"${keyword}"_
+
+`;
+                limitTampil.forEach((buku, i) => {
+                    reply += `${i + 1}.\nJudul: *${buku.Judul_Buku}*\nPengarang: ${buku.Pengarang}\nTahun: ${buku.Tahun}\nID: ${buku.ID_Buku}\n--------------------\n\n`;
+                });
+                if (hasil.length > 10) reply += `_Menampilkan 10 dari ${hasil.length} hasil._\n`;
+                reply += `Ketik *ID BUKU* (misal: ${limitTampil[0].ID_Buku}) untuk melihat detail & stok.\nKetik *MENU* untuk layanan lain.`;
+                return { reply_message: reply, context: 'Hasil Pencarian Buku By Judul' };
+            }
+
+            if (prefixPengarang) {
+                const keyword = prefixPengarang[1].trim();
+                if (keyword.length < 2) {
+                    return { reply_message: `⚠️ Kata kunci terlalu pendek. Masukkan minimal 2 huruf setelah *pengarang:*` };
+                }
+                const hasil = await dbService.cariBukuByPengarang(keyword);
+                if (hasil.length === 0) {
+                    return { reply_message: `⚠️ *Tidak ditemukan* buku karya pengarang *"${keyword}"*.
+
+Coba nama lain atau ketik *MENU*.`, context: 'Pencarian Buku' };
+                }
+                const limitTampil = hasil.slice(0, 10);
+                let reply = `📚 *HASIL PENCARIAN PENGARANG*
+Kata kunci: _"${keyword}"_
+
+`;
+                limitTampil.forEach((buku, i) => {
+                    reply += `${i + 1}.\nJudul: *${buku.Judul_Buku}*\nPengarang: *${buku.Pengarang}*\nTahun: ${buku.Tahun}\nID: ${buku.ID_Buku}\n--------------------\n\n`;
+                });
+                if (hasil.length > 10) reply += `_Menampilkan 10 dari ${hasil.length} hasil._\n`;
+                reply += `Ketik *ID BUKU* (misal: ${limitTampil[0].ID_Buku}) untuk melihat detail & stok.\nKetik *MENU* untuk layanan lain.`;
+                return { reply_message: reply, context: 'Hasil Pencarian Buku By Pengarang' };
             }
 
             console.log(`[HYBRID] Mencoba cek ID: ${inputUser}`);
@@ -1003,10 +1056,10 @@ const createResponse = async (message, from, userName, finalNumber) => {
 
             if (detailBuku) {
                 // === KETEMU SEBAGAI ID ===
-                resetSessionState(from); // Reset ke menu (Selesai)
+                // Tetap di state waiting_for_book_id agar mahasiswa bisa langsung cari buku lain
                 
                 let reply = `📖 *DETAIL BUKU PERPUSTAKAAN*\n\n`;
-                reply += `*Judul*: ${detailBuku.Judul}\n`;      // Gunakan .Judul
+                reply += `*Judul*: ${detailBuku.Judul}\n`;
                 reply += `*Pengarang*: ${detailBuku.Pengarang}\n`;
                 reply += `*Penerbit*: ${detailBuku.Penerbit || '-'}\n`;
                 reply += `*Tahun*: ${detailBuku.Tahun}\n`;
@@ -1029,10 +1082,11 @@ const createResponse = async (message, from, userName, finalNumber) => {
                     reply += `\n⚠️ _Data fisik/barcode buku ini belum terdaftar._`;
                 }
 
-                reply += `\n\nKetik *MENU* untuk layanan lain.`;
+                reply += `\n\nKetik *judul:* atau *pengarang:* untuk cari buku lain.`;
+                reply += `\nKetik *MENU* untuk layanan lain.`;
                 return { 
                     reply_message: reply,
-                    context: "Detail info Buku" // <-- SPESIFIK DETAIL BUKU
+                    context: "Detail info Buku"
                 };
 
             }
@@ -1217,7 +1271,7 @@ const createResponse = async (message, from, userName, finalNumber) => {
         'turnitin'       : () => ({ reply_message: responsesData.general_services['7'] }),
         'bantuan'        : async () => {
             await setUserMode(from, 'pilih_cabang');
-            return { reply_message: '🏢 *Pilih Cabang Perpustakaan*\n\nSilakan balas dengan angka sesuai lokasi kampus:\n\n*1.* Kampus Meruya\n*2.* Kampus Menteng\n*3.* Kampus Warung Buncit\n\nKetik *BATAL* untuk kembali ke menu utama' };
+            return { reply_message: '🏢 *Pilih Cabang Perpustakaan*\n\nSilakan balas dengan angka sesuai lokasi kampus:\n\n*1.* Kampus Meruya\n*2.* Kampus Menteng\n*3.* Kampus Warung Buncit\n\nKetik *MENU* untuk layanan lain.' };
         },
         'selesai'        : () => { delete sessionHistory[from]; return { reply_message: responsesData.flow_messages.session_end_message }; }
     };
@@ -1338,7 +1392,7 @@ KONTAK PERPUSTAKAAN:
    Contoh SALAH : "Untuk info jam buka, silakan ketik *3*."
    Contoh BENAR : "Perpustakaan buka Senin-Jumat jam 08.00-16.00 WIB, Sabtu 08.00-17.00 WIB."
 
-2. SETELAH menjawab, SELALU tambahkan arahan ke nomor menu yang relevan di akhir jawaban (dalam bubble yang sama).
+2. SETELAH menjawab, SELALU tambahkan arahan ke nomor menu yang relevan di akhir jawaban (dalam bubble yang sama namun berikan spasi paragraf 2 kali).
    Gunakan format: "Untuk info selengkapnya ketik *[NOMOR]*"
    Peta menu untuk arahan:
    - Topik tata tertib, jam buka, ketentuan peminjaman -> ketik *3*
@@ -1545,7 +1599,7 @@ app.post("/process-message", async (req, res) => {
             await setUserMode(from, 'pilih_cabang');
 
             return res.json({ 
-                reply: "*Pilih Cabang Perpustakaan*\n\nSilakan balas dengan angka sesuai lokasi kampus yang ingin Anda hubungi:\n\n*1.* Kampus Meruya\n*2.* Kampus Menteng\n*3.* Kampus Warung Buncit\n\nKetik *BATAL* untuk kembali ke menu utama" 
+                reply: "*Pilih Cabang Perpustakaan*\n\nSilakan balas dengan angka sesuai lokasi kampus yang ingin Anda hubungi:\n\n*1.* Kampus Meruya\n*2.* Kampus Menteng\n*3.* Kampus Warung Buncit\n\nKetik *MENU* untuk layanan lain." 
             });
         }
 
@@ -1556,7 +1610,7 @@ app.post("/process-message", async (req, res) => {
             if (cleanText === 'batal' || cleanText === 'menu') {
                 await setUserMode(from, 'bot');
                 return res.json({ 
-                    reply: "*Dibatalkan* Anda telah kembali ke menu utama. Silakan ketik *Menu* untuk melihat layanan kembali." 
+                    reply: responsesData.system_commands.menu 
                 });
             }
 
@@ -1606,7 +1660,7 @@ app.post("/process-message", async (req, res) => {
             // Jika balasan tidak sesuai (Bukan 1, 2, 3, atau batal)
             else {
                 return res.json({
-                    reply: "⚠️ Pilihan tidak valid. Silakan balas dengan angka *1, 2, atau 3*.\nKetik *menu* untuk membatalkan dan kembali ke menu."
+                    reply: "⚠️ Pilihan tidak valid. Silakan balas dengan angka *1, 2, atau 3*.\n\nKetik *menu* untuk kembali ke menu."
                 });
             }
         }
