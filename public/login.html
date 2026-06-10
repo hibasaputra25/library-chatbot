@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Admin Panel Chatbot Perpustakaan UMB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { -webkit-font-smoothing: antialiased; }
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .card { animation: cardIn .3s ease; }
+        @keyframes cardIn { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .btn-primary { transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease; }
+        .btn-primary:hover:not(:disabled) { opacity: 0.93; transform: translateY(-1px); box-shadow: 0 8px 18px rgba(37,99,235,0.3); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .input-field {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px 16px;
+            width: 100%;
+            font-size: 14px;
+            outline: none;
+            transition: border-color .2s, box-shadow .2s;
+            background: #f8fafc;
+        }
+        .input-field:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); background: #fff; }
+        .tab-btn { transition: color .2s, border-color .2s; }
+        .tab-btn.active { color: #2563eb; border-bottom: 2px solid #2563eb; }
+        .tab-btn:not(.active) { color: #64748b; border-bottom: 2px solid transparent; }
+        .panel { display: none; }
+        .panel.active { display: block; }
+        .alert { border-radius: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+        .alert-error { background: #fef2f2; color: #b91c1c; }
+        .alert-success { background: #f0fdf4; color: #15803d; }
+        .alert-info { background: #eff6ff; color: #1d4ed8; }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md">
+        <!-- Logo & Title -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-600 shadow-xl mb-4">
+                <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-extrabold text-white tracking-tight">Online Library UMB</h1>
+            <p class="text-blue-300 text-sm mt-1">Admin Panel &mdash; Sistem Chatbot Perpustakaan</p>
+        </div>
+
+        <!-- Card -->
+        <div class="card bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-100 px-6 pt-5">
+                <button class="tab-btn active pb-3 pr-6 text-sm font-semibold" data-tab="login">Masuk</button>
+                <button class="tab-btn pb-3 pr-6 text-sm font-semibold" data-tab="forgot">Lupa Password</button>
+            </div>
+
+            <div class="p-6">
+
+                <!-- ====== TAB LOGIN ====== -->
+                <div id="panel-login" class="panel active">
+                    <div id="alert-login" class="alert hidden"></div>
+                    <form id="form-login" autocomplete="off">
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
+                            <input type="text" id="login-username" class="input-field" placeholder="Masukkan username" required autocomplete="username">
+                        </div>
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                            <div class="relative">
+                                <input type="password" id="login-password" class="input-field pr-12" placeholder="Masukkan password" required autocomplete="current-password">
+                                <button type="button" id="toggle-password" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1">
+                                    <svg id="eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <button type="submit" id="btn-login" class="btn-primary w-full bg-blue-600 text-white font-semibold py-3 rounded-xl text-sm">
+                            Masuk ke Panel Admin
+                        </button>
+                    </form>
+                </div>
+
+                <!-- ====== TAB FORGOT PASSWORD ====== -->
+                <div id="panel-forgot" class="panel">
+
+                    <!-- Step 1: Input username -->
+                    <div id="forgot-step-1">
+                        <p class="text-sm text-gray-500 mb-4">Masukkan username Anda. Kode OTP akan dikirim ke nomor WhatsApp yang terdaftar.</p>
+                        <div id="alert-forgot" class="alert hidden"></div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
+                            <input type="text" id="forgot-username" class="input-field" placeholder="Masukkan username Anda">
+                        </div>
+                        <button id="btn-send-otp" class="btn-primary w-full bg-blue-600 text-white font-semibold py-3 rounded-xl text-sm">
+                            Kirim OTP via WhatsApp
+                        </button>
+                    </div>
+
+                    <!-- Step 2: Input OTP + password baru -->
+                    <div id="forgot-step-2" class="hidden">
+                        <div class="flex items-center gap-2 mb-4">
+                            <button id="btn-back-step1" class="text-blue-600 hover:text-blue-800">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                            </button>
+                            <p class="text-sm text-gray-500">Masukkan kode OTP dari WhatsApp dan password baru Anda.</p>
+                        </div>
+                        <div id="alert-reset" class="alert hidden"></div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Kode OTP</label>
+                            <input type="text" id="reset-otp" class="input-field tracking-widest text-center text-xl font-bold" placeholder="000000" maxlength="6">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Password Baru</label>
+                            <input type="password" id="reset-new-password" class="input-field" placeholder="Minimal 8 karakter">
+                        </div>
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-1.5">Konfirmasi Password Baru</label>
+                            <input type="password" id="reset-confirm-password" class="input-field" placeholder="Ulangi password baru">
+                        </div>
+                        <button id="btn-reset-password" class="btn-primary w-full bg-blue-600 text-white font-semibold py-3 rounded-xl text-sm">
+                            Reset Password
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+
+        <p class="text-center text-blue-200/50 text-xs mt-6">&copy; 2026 Perpustakaan Universitas Mercu Buana</p>
+    </div>
+
+    <script>
+        // --- Tab switching ---
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+                clearAlerts();
+            });
+        });
+
+        // --- Toggle password visibility ---
+        document.getElementById('toggle-password').addEventListener('click', () => {
+            const input = document.getElementById('login-password');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        });
+
+        function clearAlerts() {
+            ['alert-login', 'alert-forgot', 'alert-reset'].forEach(id => {
+                const el = document.getElementById(id);
+                el.textContent = '';
+                el.className = 'alert hidden';
+            });
+        }
+
+        function showAlert(id, message, type = 'error') {
+            const el = document.getElementById(id);
+            el.textContent = message;
+            el.className = `alert alert-${type}`;
+        }
+
+        function setLoading(btnId, loading, defaultText) {
+            const btn = document.getElementById(btnId);
+            btn.disabled = loading;
+            btn.textContent = loading ? 'Memproses...' : defaultText;
+        }
+
+        // --- LOGIN ---
+        document.getElementById('form-login').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            if (!username || !password) return showAlert('alert-login', 'Username dan password wajib diisi.');
+
+            setLoading('btn-login', true, 'Masuk ke Panel Admin');
+            try {
+                const res = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAlert('alert-login', `Selamat datang, ${data.nama}! Mengalihkan...`, 'success');
+                    setTimeout(() => window.location.href = '/admin', 800);
+                } else {
+                    showAlert('alert-login', data.error || 'Login gagal.');
+                }
+            } catch (err) {
+                showAlert('alert-login', 'Tidak dapat terhubung ke server.');
+            } finally {
+                setLoading('btn-login', false, 'Masuk ke Panel Admin');
+            }
+        });
+
+        // --- FORGOT PASSWORD: Kirim OTP ---
+        let forgotUsername = '';
+        document.getElementById('btn-send-otp').addEventListener('click', async () => {
+            const username = document.getElementById('forgot-username').value.trim();
+            if (!username) return showAlert('alert-forgot', 'Username wajib diisi.');
+
+            setLoading('btn-send-otp', true, 'Kirim OTP via WhatsApp');
+            try {
+                const res = await fetch('/auth/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    forgotUsername = username;
+                    showAlert('alert-forgot', data.message, 'success');
+                    setTimeout(() => {
+                        document.getElementById('forgot-step-1').classList.add('hidden');
+                        document.getElementById('forgot-step-2').classList.remove('hidden');
+                        clearAlerts();
+                        showAlert('alert-reset', 'OTP berhasil dikirim. Cek WhatsApp Anda.', 'info');
+                    }, 1000);
+                } else {
+                    showAlert('alert-forgot', data.error || 'Gagal mengirim OTP.');
+                }
+            } catch (err) {
+                showAlert('alert-forgot', 'Tidak dapat terhubung ke server.');
+            } finally {
+                setLoading('btn-send-otp', false, 'Kirim OTP via WhatsApp');
+            }
+        });
+
+        // --- Kembali ke step 1 ---
+        document.getElementById('btn-back-step1').addEventListener('click', () => {
+            document.getElementById('forgot-step-2').classList.add('hidden');
+            document.getElementById('forgot-step-1').classList.remove('hidden');
+            clearAlerts();
+        });
+
+        // --- FORGOT PASSWORD: Reset password ---
+        document.getElementById('btn-reset-password').addEventListener('click', async () => {
+            const otp = document.getElementById('reset-otp').value.trim();
+            const newPass = document.getElementById('reset-new-password').value;
+            const confirmPass = document.getElementById('reset-confirm-password').value;
+
+            if (!otp || !newPass || !confirmPass) return showAlert('alert-reset', 'Semua field wajib diisi.');
+            if (newPass.length < 8) return showAlert('alert-reset', 'Password minimal 8 karakter.');
+            if (newPass !== confirmPass) return showAlert('alert-reset', 'Konfirmasi password tidak cocok.');
+
+            setLoading('btn-reset-password', true, 'Reset Password');
+            try {
+                const res = await fetch('/auth/reset-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: forgotUsername, otp, new_password: newPass })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAlert('alert-reset', data.message + ' Mengalihkan ke halaman login...', 'success');
+                    setTimeout(() => {
+                        document.querySelectorAll('.tab-btn')[0].click();
+                        document.getElementById('forgot-step-2').classList.add('hidden');
+                        document.getElementById('forgot-step-1').classList.remove('hidden');
+                        document.getElementById('forgot-username').value = '';
+                    }, 2000);
+                } else {
+                    showAlert('alert-reset', data.error || 'Gagal reset password.');
+                }
+            } catch (err) {
+                showAlert('alert-reset', 'Tidak dapat terhubung ke server.');
+            } finally {
+                setLoading('btn-reset-password', false, 'Reset Password');
+            }
+        });
+    </script>
+</body>
+</html>

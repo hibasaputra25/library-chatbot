@@ -103,6 +103,11 @@
                 Riwayat Chat Detail
             </a>
 
+            <h2 class="text-[10px] uppercase text-gray-500 font-bold mb-2 mt-6 px-3 tracking-widest">Pengaturan</h2>
+            <a href="#" class="sidebar-link flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out" data-category="users">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                Manajemen Pustakawan
+            </a>
             <h2 class="text-[10px] uppercase text-gray-500 font-bold mb-2 mt-6 px-3 tracking-widest">Master Data</h2>
             <a href="#" class="sidebar-link flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out" data-category="system_commands">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
@@ -117,11 +122,16 @@
                 Layanan Umum
             </a>
         </nav>
-        <div class="mt-4 pt-4 border-t border-white/10 px-3">
+        <div class="mt-4 pt-4 border-t border-white/10 px-3 space-y-3">
             <div class="flex items-center gap-2 text-xs text-gray-400">
                 <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
                 Bot Online
             </div>
+            <div class="text-xs text-gray-400 truncate" id="sidebar-username">Memuat...</div>
+            <button id="btn-logout" class="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                Keluar
+            </button>
         </div>
     </aside>
 
@@ -248,6 +258,37 @@
             </div>
         </main>
 
+        <main id="main-users" class="hidden fade-in">
+            <div class="card overflow-hidden mb-6">
+                <div class="p-6 border-b border-gray-100 flex flex-wrap gap-4 justify-between items-center">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800">Manajemen Akun Pustakawan</h2>
+                        <p class="text-sm text-gray-500">Kelola akun yang bisa mengakses admin panel</p>
+                    </div>
+                    <button id="btn-add-user" class="btn-primary flex items-center bg-green-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow-md transition duration-200">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                        Tambah Pustakawan
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50/80">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Username</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Nama</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Nomor WhatsApp</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Login Terakhir</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body" class="bg-white divide-y divide-gray-100 text-sm">
+                            <tr><td colspan="5" class="px-6 py-10 text-center text-gray-500 italic">Memuat data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
         <main id="main-editor" class="card p-6 hidden fade-in">
             <div class="flex flex-wrap gap-4 justify-between items-center mb-5">
                 <h2 class="text-xl font-bold text-gray-800" id="table-heading">Daftar Respons</h2>
@@ -273,6 +314,51 @@
             </div>
         </main>
         
+    </div>
+
+    <!-- Modal Tambah/Edit Pustakawan -->
+    <div id="user-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 id="user-modal-title" class="text-2xl font-bold mb-5 text-gray-800">Tambah Pustakawan</h2>
+            <div id="user-modal-alert" class="hidden mb-4 p-3 rounded-xl text-sm font-semibold"></div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                <input type="text" id="user-modal-username" class="block w-full border border-gray-300 rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition">
+            </div>
+            <div class="mb-4" id="user-modal-password-group">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Password <span class="text-gray-400 font-normal">(min. 8 karakter)</span></label>
+                <input type="password" id="user-modal-password" class="block w-full border border-gray-300 rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap</label>
+                <input type="text" id="user-modal-nama" class="block w-full border border-gray-300 rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition">
+            </div>
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nomor WhatsApp <span class="text-gray-400 font-normal">(untuk OTP)</span></label>
+                <input type="text" id="user-modal-wa" class="block w-full border border-gray-300 rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition" placeholder="628123456789">
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button id="user-modal-cancel" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 px-5 rounded-xl transition">Batal</button>
+                <button id="user-modal-save" class="btn-primary bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-xl transition">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Reset Password Pustakawan -->
+    <div id="reset-pw-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="modal-panel bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h2 class="text-xl font-bold mb-2 text-gray-800">Reset Password</h2>
+            <p id="reset-pw-label" class="text-sm text-gray-500 mb-4"></p>
+            <div id="reset-pw-alert" class="hidden mb-4 p-3 rounded-xl text-sm font-semibold"></div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Password Baru</label>
+                <input type="password" id="reset-pw-input" class="block w-full border border-gray-300 rounded-xl p-3 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition">
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button id="reset-pw-cancel" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 px-5 rounded-xl transition">Batal</button>
+                <button id="reset-pw-save" class="btn-primary bg-orange-500 text-white font-semibold py-2.5 px-5 rounded-xl transition">Reset</button>
+            </div>
+        </div>
     </div>
 
     <div id="edit-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
@@ -319,6 +405,8 @@
         let trafficChart = null;
         let peakHourChart = null;
         let libraryChart = null;
+        let editingUserId = null;
+        let resetPwUserId = null;
 
         const displayStatus = (message, isSuccess = true) => {
             const statusDiv = document.getElementById('status-message');
@@ -484,6 +572,7 @@
             document.getElementById('main-dashboard').classList.add('hidden');
             document.getElementById('main-history').classList.add('hidden');
             document.getElementById('main-editor').classList.add('hidden');
+            document.getElementById('main-users').classList.add('hidden');
 
             const btnAdd = document.getElementById('btn-add-new-key');
             const btnSave = document.getElementById('btn-save-all');
@@ -497,6 +586,10 @@
                 document.getElementById('main-history').classList.remove('hidden');
                 btnAdd.classList.add('hidden'); btnSave.classList.add('hidden');
                 fetchChatHistory();
+            } else if (newCategory === 'users') {
+                document.getElementById('main-users').classList.remove('hidden');
+                btnAdd.classList.add('hidden'); btnSave.classList.add('hidden');
+                loadUsers();
             } else {
                 document.getElementById('main-editor').classList.remove('hidden');
                 btnAdd.classList.remove('hidden'); btnSave.classList.remove('hidden');
@@ -554,6 +647,172 @@
             } catch (error) { displayStatus(error.message, false); }
         };
 
+        // --- LOGOUT ---
+        document.getElementById('btn-logout').addEventListener('click', async () => {
+            if (!confirm('Yakin ingin keluar?')) return;
+            await fetch('/auth/logout', { method: 'POST' });
+            window.location.href = '/login';
+        });
+
+        // --- LOAD SESSION INFO ---
+        const loadMe = async () => {
+            try {
+                const res = await fetch('/admin/me');
+                if (!res.ok) return window.location.href = '/login';
+                const data = await res.json();
+                document.getElementById('sidebar-username').textContent = data.nama + ' (' + data.username + ')';
+            } catch { window.location.href = '/login'; }
+        };
+
+        // --- MANAJEMEN USERS ---
+        const loadUsers = async () => {
+            const tbody = document.getElementById('users-table-body');
+            try {
+                const res = await fetch('/admin/users');
+                if (!res.ok) throw new Error();
+                const users = await res.json();
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-500">Belum ada akun pustakawan.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = '';
+                users.forEach(u => {
+                    const lastLogin = u.last_login ? new Date(u.last_login).toLocaleString('id-ID') : '-';
+                    tbody.innerHTML += `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 font-medium text-gray-900">${u.username}</td>
+                            <td class="px-6 py-4 text-gray-700">${u.nama}</td>
+                            <td class="px-6 py-4 text-gray-500">${u.nomor_wa}</td>
+                            <td class="px-6 py-4 text-gray-400 text-xs">${lastLogin}</td>
+                            <td class="px-6 py-4 whitespace-nowrap space-x-2">
+                                <button data-id="${u.id}" data-username="${u.username}" data-nama="${u.nama}" data-wa="${u.nomor_wa}" class="btn-edit-user bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-lg text-xs">Edit</button>
+                                <button data-id="${u.id}" data-nama="${u.nama}" class="btn-reset-pw bg-orange-400 hover:bg-orange-500 text-white py-1 px-3 rounded-lg text-xs">Reset PW</button>
+                                <button data-id="${u.id}" data-nama="${u.nama}" class="btn-delete-user bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-lg text-xs">Hapus</button>
+                            </td>
+                        </tr>`;
+                });
+                // Bind action buttons
+                document.querySelectorAll('.btn-edit-user').forEach(btn => btn.addEventListener('click', e => {
+                    const d = e.target.dataset;
+                    editingUserId = d.id;
+                    document.getElementById('user-modal-title').textContent = 'Edit Pustakawan';
+                    document.getElementById('user-modal-username').value = d.username;
+                    document.getElementById('user-modal-username').disabled = true;
+                    document.getElementById('user-modal-password-group').classList.add('hidden');
+                    document.getElementById('user-modal-nama').value = d.nama;
+                    document.getElementById('user-modal-wa').value = d.wa;
+                    document.getElementById('user-modal-alert').className = 'hidden';
+                    document.getElementById('user-modal').classList.remove('hidden');
+                    document.getElementById('user-modal').classList.add('flex');
+                }));
+                document.querySelectorAll('.btn-reset-pw').forEach(btn => btn.addEventListener('click', e => {
+                    resetPwUserId = e.target.dataset.id;
+                    document.getElementById('reset-pw-label').textContent = 'Reset password untuk: ' + e.target.dataset.nama;
+                    document.getElementById('reset-pw-input').value = '';
+                    document.getElementById('reset-pw-alert').className = 'hidden';
+                    document.getElementById('reset-pw-modal').classList.remove('hidden');
+                    document.getElementById('reset-pw-modal').classList.add('flex');
+                }));
+                document.querySelectorAll('.btn-delete-user').forEach(btn => btn.addEventListener('click', async e => {
+                    if (!confirm('Hapus akun ' + e.target.dataset.nama + '?')) return;
+                    const res = await fetch('/admin/users/' + e.target.dataset.id, { method: 'DELETE' });
+                    const data = await res.json();
+                    if (res.ok) { displayStatus('Akun berhasil dihapus.'); loadUsers(); }
+                    else displayStatus(data.error, false);
+                }));
+            } catch { tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-red-500">Gagal memuat data.</td></tr>'; }
+        };
+
+        // Tambah user button
+        document.getElementById('btn-add-user').addEventListener('click', () => {
+            editingUserId = null;
+            document.getElementById('user-modal-title').textContent = 'Tambah Pustakawan';
+            document.getElementById('user-modal-username').value = '';
+            document.getElementById('user-modal-username').disabled = false;
+            document.getElementById('user-modal-password-group').classList.remove('hidden');
+            document.getElementById('user-modal-password').value = '';
+            document.getElementById('user-modal-nama').value = '';
+            document.getElementById('user-modal-wa').value = '';
+            document.getElementById('user-modal-alert').className = 'hidden';
+            document.getElementById('user-modal').classList.remove('hidden');
+            document.getElementById('user-modal').classList.add('flex');
+        });
+
+        document.getElementById('user-modal-cancel').addEventListener('click', () => {
+            document.getElementById('user-modal').classList.add('hidden');
+            document.getElementById('user-modal').classList.remove('flex');
+        });
+
+        document.getElementById('user-modal-save').addEventListener('click', async () => {
+            const username = document.getElementById('user-modal-username').value.trim();
+            const password = document.getElementById('user-modal-password').value;
+            const nama = document.getElementById('user-modal-nama').value.trim();
+            const nomor_wa = document.getElementById('user-modal-wa').value.trim();
+            const alertEl = document.getElementById('user-modal-alert');
+
+            if (!nama || !nomor_wa) {
+                alertEl.textContent = 'Nama dan nomor WA wajib diisi.';
+                alertEl.className = 'mb-4 p-3 rounded-xl text-sm font-semibold bg-red-100 text-red-700';
+                return;
+            }
+
+            let res, data;
+            if (editingUserId) {
+                res = await fetch('/admin/users/' + editingUserId, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nama, nomor_wa })
+                });
+            } else {
+                if (!username || !password) {
+                    alertEl.textContent = 'Semua field wajib diisi.';
+                    alertEl.className = 'mb-4 p-3 rounded-xl text-sm font-semibold bg-red-100 text-red-700';
+                    return;
+                }
+                res = await fetch('/admin/users', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, nama, nomor_wa })
+                });
+            }
+            data = await res.json();
+            if (res.ok) {
+                document.getElementById('user-modal').classList.add('hidden');
+                document.getElementById('user-modal').classList.remove('flex');
+                displayStatus(data.message || 'Berhasil disimpan.');
+                loadUsers();
+            } else {
+                alertEl.textContent = data.error || 'Gagal menyimpan.';
+                alertEl.className = 'mb-4 p-3 rounded-xl text-sm font-semibold bg-red-100 text-red-700';
+            }
+        });
+
+        document.getElementById('reset-pw-cancel').addEventListener('click', () => {
+            document.getElementById('reset-pw-modal').classList.add('hidden');
+            document.getElementById('reset-pw-modal').classList.remove('flex');
+        });
+
+        document.getElementById('reset-pw-save').addEventListener('click', async () => {
+            const newPw = document.getElementById('reset-pw-input').value;
+            const alertEl = document.getElementById('reset-pw-alert');
+            if (!newPw || newPw.length < 8) {
+                alertEl.textContent = 'Password minimal 8 karakter.';
+                alertEl.className = 'mb-4 p-3 rounded-xl text-sm font-semibold bg-red-100 text-red-700';
+                return;
+            }
+            const res = await fetch('/admin/users/' + resetPwUserId + '/password', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_password: newPw })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById('reset-pw-modal').classList.add('hidden');
+                document.getElementById('reset-pw-modal').classList.remove('flex');
+                displayStatus('Password berhasil direset.');
+            } else {
+                alertEl.textContent = data.error || 'Gagal reset password.';
+                alertEl.className = 'mb-4 p-3 rounded-xl text-sm font-semibold bg-red-100 text-red-700';
+            }
+        });
+
         // --- INIT ---
         window.onload = () => {
             document.querySelectorAll('.sidebar-link').forEach(link => link.addEventListener('click', handleCategoryChange));
@@ -567,6 +826,9 @@
             document.getElementById('add-modal-cancel').addEventListener('click', () => { document.getElementById('add-modal').classList.add('hidden'); document.getElementById('add-modal').classList.remove('flex'); });
             document.getElementById('add-modal-save').addEventListener('click', handleAddModalSave);
             document.getElementById('search-input').addEventListener('keyup', (e) => renderTable(currentCategory, e.target.value));
+
+            // Load session info
+            loadMe();
 
             // Default Load: Dashboard
             document.querySelector('.sidebar-link[data-category="dashboard"]').click();

@@ -18,9 +18,10 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const util = require("util"); 
-const axios = require('axios'); // Tambahkan ini di baris atas
-const basicAuth = require('express-basic-auth');
-const path = require('path'); // Bawaan node.js, biar path folder aman
+const axios = require('axios');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
+const path = require('path');
 
 // HUMAN MODE
 // Konfigurasi Admin & Gateway
@@ -90,36 +91,266 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cors());
 
 // =======================================================
-// KEAMANAN ADMIN PANEL (BASIC AUTH)
+// SESSION & KEAMANAN ADMIN PANEL
 // =======================================================
 
-const adminUser = process.env.ADMIN_USER;
-const adminPass = process.env.ADMIN_PASS;
+const SESSION_SECRET = process.env.SESSION_SECRET || 'chatbot-perpus-secret-key-ganti-ini';
 
-// Cek apakah env sudah diset?
-if (!adminUser || !adminPass) {
-    console.warn("⚠️ PERINGATAN: ADMIN_USER dan ADMIN_PASS belum diset di .env. Admin panel tidak aman/tidak bisa diakses.");
+app.use(session({
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        httpOnly: true,
+        secure: false, // set true jika pakai HTTPS
+        maxAge: 8 * 60 * 60 * 1000 // 8 jam
+    }
+}));
+
+// Brute-force protection: in-memory store { ip: { count, lockedUntil } }
+const loginAttempts = {};
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 menit
+
+function checkBruteForce(ip) {
+    const now = Date.now();
+    if (!loginAttempts[ip]) return { locked: false };
+    const entry = loginAttempts[ip];
+    if (entry.lockedUntil && now < entry.lockedUntil) {
+        const sisaMenit = Math.ceil((entry.lockedUntil - now) / 60000);
+        return { locked: true, sisaMenit };
+    }
+    if (entry.lockedUntil && now >= entry.lockedUntil) {
+        delete loginAttempts[ip]; // reset setelah lockout selesai
+    }
+    return { locked: false };
 }
 
-// Konfigurasi Middleware Autentikasi
-const authMiddleware = basicAuth({
-    users: { [adminUser]: adminPass }, // Ambil dari .env
-    challenge: true, // Memunculkan popup login bawaan browser
-    unauthorizedResponse: 'Akses Ditolak: Anda bukan Pustakawan!'
+function recordFailedLogin(ip) {
+    if (!loginAttempts[ip]) loginAttempts[ip] = { count: 0 };
+    loginAttempts[ip].count++;
+    if (loginAttempts[ip].count >= MAX_LOGIN_ATTEMPTS) {
+        loginAttempts[ip].lockedUntil = Date.now() + LOCKOUT_DURATION;
+        console.warn(`[AUTH] IP ${ip} dikunci ${LOCKOUT_DURATION / 60000} menit karena ${MAX_LOGIN_ATTEMPTS}x gagal login.`);
+    }
+}
+
+function resetLoginAttempts(ip) {
+    delete loginAttempts[ip];
+}
+
+// Middleware: cek apakah sudah login
+const requireLogin = (req, res, next) => {
+    if (req.session && req.session.adminId) return next();
+    // Jika request API (bukan halaman HTML), kembalikan JSON
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+        return res.status(401).json({ error: 'Sesi habis. Silakan login kembali.' });
+    }
+    return res.redirect('/login');
+};
+
+// =======================================================
+// ROUTE AUTH: LOGIN, LOGOUT, FORGOT PASSWORD
+// =======================================================
+
+// Halaman login
+app.get('/login', (req, res) => {
+    if (req.session && req.session.adminId) return res.redirect('/admin');
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// TERAPKAN PROTEKSI:
-// Semua URL yang berawalan "/admin" WAJIB Login dulu.
-// Ini melindungi Halaman HTML DAN API Save/Delete sekaligus.
-app.use('/admin', authMiddleware);
+// Proses login
+app.post('/auth/login', async (req, res) => {
+    const ip = req.ip;
+    const { username, password } = req.body;
+
+    // Cek brute-force
+    const bf = checkBruteForce(ip);
+    if (bf.locked) {
+        return res.status(429).json({ error: `Terlalu banyak percobaan login. Coba lagi dalam ${bf.sisaMenit} menit.` });
+    }
+
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username dan password wajib diisi.' });
+    }
+
+    try {
+        const user = await analyticsDb.getAdminUserByUsername(username.trim());
+        if (!user) {
+            recordFailedLogin(ip);
+            return res.status(401).json({ error: 'Username atau password salah.' });
+        }
+
+        const valid = await bcrypt.compare(password, user.password_hash);
+        if (!valid) {
+            recordFailedLogin(ip);
+            return res.status(401).json({ error: 'Username atau password salah.' });
+        }
+
+        // Login berhasil
+        resetLoginAttempts(ip);
+        req.session.adminId = user.id;
+        req.session.adminUsername = user.username;
+        req.session.adminNama = user.nama;
+        await analyticsDb.updateLastLogin(user.id);
+
+        return res.json({ success: true, nama: user.nama });
+    } catch (err) {
+        console.error('[AUTH] Login error:', err.message);
+        return res.status(500).json({ error: 'Terjadi kesalahan server.' });
+    }
+});
+
+// Logout
+app.post('/auth/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.clearCookie('connect.sid');
+        res.json({ success: true });
+    });
+});
+
+// Forgot password: request OTP
+app.post('/auth/forgot-password', async (req, res) => {
+    const { username } = req.body;
+    if (!username) return res.status(400).json({ error: 'Username wajib diisi.' });
+
+    try {
+        const user = await analyticsDb.getAdminUserByUsername(username.trim());
+        // Selalu balas sukses agar tidak bocorkan info username mana yang terdaftar
+        if (!user || !user.nomor_wa) {
+            return res.json({ success: true, message: 'Jika username terdaftar, OTP akan dikirim ke WhatsApp Anda.' });
+        }
+
+        const otp = await analyticsDb.createOtp(user.username);
+        const waTarget = user.nomor_wa.replace(/[^0-9]/g, '') + '@c.us';
+        const pesanOtp = `*[ADMIN PANEL]*\nKode OTP reset password Anda:\n\n*${otp}*\n\nKode berlaku 5 menit. Jangan berikan kepada siapapun.`;
+
+        await axios.post(WA_GATEWAY_URL, { to: waTarget, message: pesanOtp });
+        console.log(`[AUTH] OTP dikirim ke ${user.nomor_wa} untuk user '${user.username}'`);
+
+        return res.json({ success: true, message: 'Jika username terdaftar, OTP akan dikirim ke WhatsApp Anda.' });
+    } catch (err) {
+        console.error('[AUTH] Forgot password error:', err.message);
+        return res.status(500).json({ error: 'Gagal mengirim OTP. Pastikan WhatsApp bot aktif.' });
+    }
+});
+
+// Reset password: verifikasi OTP lalu ganti password
+app.post('/auth/reset-password', async (req, res) => {
+    const { username, otp, new_password } = req.body;
+    if (!username || !otp || !new_password) {
+        return res.status(400).json({ error: 'Username, OTP, dan password baru wajib diisi.' });
+    }
+    if (new_password.length < 8) {
+        return res.status(400).json({ error: 'Password baru minimal 8 karakter.' });
+    }
+
+    try {
+        const valid = await analyticsDb.verifyOtp(username.trim(), otp.trim());
+        if (!valid) {
+            return res.status(400).json({ error: 'OTP salah atau sudah kadaluarsa.' });
+        }
+
+        const user = await analyticsDb.getAdminUserByUsername(username.trim());
+        if (!user) return res.status(400).json({ error: 'User tidak ditemukan.' });
+
+        await analyticsDb.updateAdminPassword(user.id, new_password);
+        console.log(`[AUTH] Password user '${username}' berhasil direset.`);
+        return res.json({ success: true, message: 'Password berhasil direset. Silakan login.' });
+    } catch (err) {
+        console.error('[AUTH] Reset password error:', err.message);
+        return res.status(500).json({ error: 'Terjadi kesalahan server.' });
+    }
+});
 
 // =======================================================
 // ROUTE HALAMAN ADMIN
 // =======================================================
 
-// Saat buka http://localhost:3001/admin -> Tampilkan file dari folder public
-app.get('/admin', (req, res) => {
+app.get('/admin', requireLogin, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// API: info sesi yang sedang login
+app.get('/admin/me', requireLogin, (req, res) => {
+    res.json({ id: req.session.adminId, username: req.session.adminUsername, nama: req.session.adminNama });
+});
+
+// =======================================================
+// ROUTE API MANAJEMEN USER ADMIN
+// =======================================================
+
+// GET semua admin user
+app.get('/admin/users', requireLogin, async (req, res) => {
+    try {
+        const users = await analyticsDb.getAllAdminUsers();
+        res.json(users);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST buat admin user baru
+app.post('/admin/users', requireLogin, async (req, res) => {
+    const { username, password, nama, nomor_wa } = req.body;
+    if (!username || !password || !nama || !nomor_wa) {
+        return res.status(400).json({ error: 'Semua field wajib diisi.' });
+    }
+    if (password.length < 8) {
+        return res.status(400).json({ error: 'Password minimal 8 karakter.' });
+    }
+    try {
+        await analyticsDb.createAdminUser(username.trim(), password, nama.trim(), nomor_wa.trim());
+        res.json({ success: true, message: `Akun '${username}' berhasil dibuat.` });
+    } catch (err) {
+        if (err.message.includes('UNIQUE')) {
+            return res.status(409).json({ error: 'Username sudah digunakan.' });
+        }
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT update admin user (nama & nomor WA)
+app.put('/admin/users/:id', requireLogin, async (req, res) => {
+    const { nama, nomor_wa } = req.body;
+    if (!nama || !nomor_wa) return res.status(400).json({ error: 'Nama dan nomor WA wajib diisi.' });
+    try {
+        await analyticsDb.updateAdminUser(req.params.id, nama.trim(), nomor_wa.trim());
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT reset password admin user oleh admin lain
+app.put('/admin/users/:id/password', requireLogin, async (req, res) => {
+    const { new_password } = req.body;
+    if (!new_password || new_password.length < 8) {
+        return res.status(400).json({ error: 'Password minimal 8 karakter.' });
+    }
+    // Cegah admin menghapus password dirinya sendiri via endpoint ini
+    if (parseInt(req.params.id) === req.session.adminId) {
+        return res.status(403).json({ error: 'Gunakan fitur forgot password untuk mengubah password sendiri.' });
+    }
+    try {
+        await analyticsDb.updateAdminPassword(req.params.id, new_password);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// DELETE admin user
+app.delete('/admin/users/:id', requireLogin, async (req, res) => {
+    if (parseInt(req.params.id) === req.session.adminId) {
+        return res.status(403).json({ error: 'Tidak bisa menghapus akun sendiri.' });
+    }
+    try {
+        await analyticsDb.deleteAdminUser(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // =======================================================
@@ -293,7 +524,35 @@ const validateResponseData = (data) => {
     return true;
 };
 
-// 3. Fungsi Auto-Backup
+// 3. Fungsi Rotate Backup — simpan MAX_BACKUPS file terbaru, hapus sisanya
+const MAX_BACKUPS = 7;
+const rotateBackups = () => {
+    try {
+        const files = fs.readdirSync(BACKUP_DIR)
+            .filter(f => f.startsWith('responses-') && f.endsWith('.json'))
+            .map(f => ({
+                name: f,
+                time: fs.statSync(path.join(BACKUP_DIR, f)).mtime
+            }))
+            .sort((a, b) => b.time - a.time); // terbaru di depan
+
+        const toDelete = files.slice(MAX_BACKUPS);
+        toDelete.forEach(f => {
+            fs.unlinkSync(path.join(BACKUP_DIR, f.name));
+            console.log(`[BACKUP] Backup lama dihapus: ${f.name}`);
+        });
+
+        if (toDelete.length === 0) {
+            console.log(`[BACKUP] Rotasi: tidak ada file lama yang perlu dihapus (total: ${files.length})`);
+        } else {
+            console.log(`[BACKUP] Rotasi selesai: ${toDelete.length} file dihapus, ${Math.min(files.length, MAX_BACKUPS)} file dipertahankan`);
+        }
+    } catch (error) {
+        console.error("[BACKUP ERROR] Gagal melakukan rotasi backup:", error);
+    }
+};
+
+// 4. Fungsi Auto-Backup
 const createBackup = () => {
     try {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -303,6 +562,9 @@ const createBackup = () => {
         // Copy file responses.json saat ini ke folder backup
         fs.copyFileSync(RESPONSES_FILE_PATH, backupPath);
         console.log(`[BACKUP] Berhasil membuat backup: ${backupFilename}`);
+
+        // Rotasi: hapus backup lama jika melebihi MAX_BACKUPS
+        rotateBackups();
         return true;
     } catch (error) {
         console.error("[BACKUP ERROR] Gagal membuat backup:", error);
@@ -1767,7 +2029,7 @@ app.post("/admin/data/delete-key", (req, res) => {
 // API DASHBOARD (SUMBER DATA: SQLITE LOKAL)
 // =======================================================
 
-app.get("/admin/stats/summary", authMiddleware, async (req, res) => {
+app.get("/admin/stats/summary", requireLogin, async (req, res) => {
     try {
         // --- DATA DARI SQLITE (LOG CHAT) ---
         
