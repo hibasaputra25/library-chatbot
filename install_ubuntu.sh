@@ -97,7 +97,53 @@ else
 fi
 
 # ==============================
-# 5. INSTALL PM2
+# 5. INSTALL POSTGRESQL
+# ==============================
+info "Checking PostgreSQL..."
+if command -v psql &> /dev/null; then
+    warn "PostgreSQL already installed: $(psql --version)"
+else
+    read -p "Install PostgreSQL locally? (y/n, default n - skip if using remote PG server): " INSTALL_PG
+    if [[ "$INSTALL_PG" =~ ^[Yy]$ ]]; then
+        info "Installing PostgreSQL..."
+        sudo apt install -y postgresql postgresql-contrib
+        sudo systemctl enable postgresql
+        sudo systemctl start postgresql
+        ok "PostgreSQL installed: $(psql --version)"
+
+        info "Creating database and user for chatbot analytics..."
+        read -p "  Database name [chatbot_analytics]: " PG_DB
+        PG_DB=${PG_DB:-chatbot_analytics}
+        read -p "  DB user [chatbot_user]: " PG_USER
+        PG_USER=${PG_USER:-chatbot_user}
+        read -s -p "  DB password: " PG_PASS
+        echo ""
+
+        sudo -u postgres psql -c "CREATE DATABASE $PG_DB;"
+        sudo -u postgres psql -c "CREATE USER $PG_USER WITH ENCRYPTED PASSWORD '$PG_PASS';"
+        sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE $PG_DB TO $PG_USER;"
+        sudo -u postgres psql -c "GRANT SCHEMA USAGE ON SCHEMA public TO $PG_USER;" -d $PG_DB 2>/dev/null || true
+        sudo -u postgres psql -c "GRANT CREATE ON SCHEMA public TO $PG_USER;" -d $PG_DB 2>/dev/null || true
+        ok "PostgreSQL database '$PG_DB' dan user '$PG_USER' berhasil dibuat."
+        warn "Tambahkan ke .env: PG_HOST=localhost PG_DATABASE=$PG_DB PG_USER=$PG_USER PG_PASSWORD=<password>"
+    else
+        warn "Skip instalasi PostgreSQL. Pastikan PG_HOST, PG_DATABASE, PG_USER, PG_PASSWORD di .env sudah dikonfigurasi ke server PostgreSQL Anda."
+    fi
+fi
+
+# ==============================
+# 7. INSTALL PM2
+# ==============================
+if command -v pm2 &> /dev/null; then
+    warn "PM2 already installed: $(pm2 --version)"
+else
+    info "Installing PM2..."
+    npm install -g pm2
+    ok "PM2 installed: $(pm2 --version)"
+fi
+
+# ==============================
+# 8. SETUP PM2 STARTUP
 # ==============================
 if command -v pm2 &> /dev/null; then
     warn "PM2 already installed: $(pm2 --version)"
@@ -138,9 +184,18 @@ echo "  1. Clone/upload your project"
 echo "  2. cd ~/library-chatbot"
 echo "  3. npm install"
 echo "  4. cp .env.example .env"
-echo "  5. nano .env  (edit database credentials)"
+echo "  5. nano .env  (edit semua credentials, termasuk PG_* dan SESSION_SECRET)"
 echo "  6. pm2 start ecosystem.config.js"
 echo "  7. pm2 logs"
+echo ""
+echo "Pastikan .env sudah berisi:"
+echo "  - DB_HOST, DB_USER, DB_PASSWORD, DB_NAME  (MySQL kampus)"
+echo "  - PG_HOST, PG_PORT, PG_DATABASE, PG_USER, PG_PASSWORD  (PostgreSQL analytics)"
+echo "  - ADMIN_USER, ADMIN_PASS, ADMIN_NAMA, ADMIN_WA_NUMBER"
+echo "  - SESSION_SECRET  (string acak panjang)"
+echo "  - GROQ_API_KEY, GEMINI_API_KEY"
+echo "  - WA_GATEWAY_URL=http://127.0.0.1:3002/send-direct"
+echo "  - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser"
 echo ""
 echo "IMPORTANT: Always run PM2 commands with bash loaded:"
 echo "  export NVM_DIR=\"\$HOME/.nvm\""

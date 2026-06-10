@@ -104,6 +104,10 @@
             </a>
 
             <h2 class="text-[10px] uppercase text-gray-500 font-bold mb-2 mt-6 px-3 tracking-widest">Pengaturan</h2>
+            <a href="#" class="sidebar-link flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out" data-category="whatsapp">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                Koneksi WhatsApp
+            </a>
             <a href="#" class="sidebar-link flex items-center gap-3 py-2.5 px-3 rounded-lg text-sm font-medium transition duration-150 ease-in-out" data-category="users">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                 Manajemen Pustakawan
@@ -124,8 +128,8 @@
         </nav>
         <div class="mt-4 pt-4 border-t border-white/10 px-3 space-y-3">
             <div class="flex items-center gap-2 text-xs text-gray-400">
-                <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                Bot Online
+                <span id="wa-status-dot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+                <span id="wa-status-text">Memuat...</span>
             </div>
             <div class="text-xs text-gray-400 truncate" id="sidebar-username">Memuat...</div>
             <button id="btn-logout" class="w-full flex items-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-500/10 hover:text-red-300 transition">
@@ -194,30 +198,24 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-4">⏰ Jam Tersibuk (Peak Hours)</h3>
-                    <div class="relative h-64 w-full">
-                        <canvas id="peakHourChart"></canvas>
-                    </div>
-                </div>
-                <div class="card p-6">
-                    <h3 class="text-lg font-semibold text-gray-700 mb-4">📚 Status Koleksi Perpustakaan</h3>
-                    <div class="relative h-64 w-full flex justify-center">
-                        <canvas id="libraryChart"></canvas>
-                    </div>
+            <div class="card p-6 mb-8">
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">⏰ Jam Tersibuk (Peak Hours)</h3>
+                <div class="relative h-64 w-full">
+                    <canvas id="peakHourChart"></canvas>
                 </div>
             </div>
 
             <div class="card overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100">
-                    <h3 class="text-lg font-semibold text-gray-700">🏆 Top 5 Pemustaka Teraktif</h3>
+                    <h3 class="text-lg font-semibold text-gray-700">🏆 Top 20 Pemustaka Teraktif</h3>
                 </div>
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50/80">
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Rank</th>
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID Pengguna (WA)</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Nomor WA</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Nama</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">NIM/ID</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Chat</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                         </tr>
@@ -229,15 +227,36 @@
 
         <main id="main-history" class="hidden fade-in">
             <div class="card overflow-hidden">
-                <div class="p-6 border-b border-gray-100 flex flex-wrap gap-4 justify-between items-center">
-                    <div>
-                        <h2 class="text-xl font-bold text-gray-800">Log Percakapan Mahasiswa</h2>
-                        <p class="text-sm text-gray-500">Daftar pesan masuk dan balasan chatbot secara real-time</p>
+                <div class="p-6 border-b border-gray-100">
+                    <div class="flex flex-wrap gap-4 justify-between items-start">
+                        <div>
+                            <h2 class="text-xl font-bold text-gray-800">Log Percakapan Mahasiswa</h2>
+                            <p class="text-sm text-gray-500">Daftar pesan masuk dan balasan chatbot secara real-time</p>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="fetchChatHistory()" class="btn-primary bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                Tampilkan
+                            </button>
+                            <button onclick="exportChatHistoryCSV()" class="btn-primary bg-green-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                Export CSV
+                            </button>
+                        </div>
                     </div>
-                    <button onclick="fetchChatHistory()" class="btn-primary bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                        Refresh Data
-                    </button>
+                    <!-- Filter Tanggal -->
+                    <div class="flex flex-wrap items-end gap-4 mt-4 pt-4 border-t border-gray-100">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">Dari Tanggal</label>
+                            <input type="date" id="filter-date-from" class="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-1">Sampai Tanggal</label>
+                            <input type="date" id="filter-date-to" class="border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                        <button onclick="resetFilterHistory()" class="text-sm text-gray-500 hover:text-gray-700 underline py-2">Reset Filter</button>
+                        <span id="history-count" class="text-xs text-gray-400 py-2"></span>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
@@ -245,16 +264,70 @@
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Waktu</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Nomor WA</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Nama</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">NIM/ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Konteks</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pesan Masuk</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Balasan Bot</th>
                             </tr>
                         </thead>
                         <tbody id="history-body" class="bg-white divide-y divide-gray-100 text-sm">
-                            <tr><td colspan="5" class="px-6 py-10 text-center text-gray-500 italic">Memuat data riwayat...</td></tr>
+                            <tr><td colspan="7" class="px-6 py-10 text-center text-gray-500 italic">Memuat data riwayat...</td></tr>
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </main>
+
+        <main id="main-whatsapp" class="hidden fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Status Card -->
+                <div class="card p-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-1">Status Koneksi WhatsApp</h2>
+                    <p class="text-sm text-gray-500 mb-6">Kelola koneksi WhatsApp bot perpustakaan</p>
+
+                    <div class="flex items-center gap-4 mb-6">
+                        <div id="wa-badge" class="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold bg-gray-100 text-gray-500">
+                            <span id="wa-badge-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+                            <span id="wa-badge-text">Memuat...</span>
+                        </div>
+                    </div>
+
+                    <div id="wa-info" class="text-sm text-gray-500 mb-6 hidden">
+                        <p>Nomor: <span id="wa-number" class="font-semibold text-gray-800">-</span></p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <button id="btn-wa-reconnect" class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-xl transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            Hubungkan / Reconnect
+                        </button>
+                        <button id="btn-wa-logout" class="hidden w-full flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 px-4 rounded-xl transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                            Putuskan Koneksi WhatsApp
+                        </button>
+                        <p id="wa-hint" class="text-xs text-gray-400 text-center"></p>
+                    </div>
+                </div>
+
+                <!-- QR Card -->
+                <div class="card p-6 flex flex-col items-center justify-center" id="wa-qr-card">
+                    <div id="wa-qr-container" class="hidden flex flex-col items-center">
+                        <p class="text-sm text-gray-500 mb-4 text-center">Scan QR ini menggunakan WhatsApp di HP Anda</p>
+                        <img id="wa-qr-img" src="" alt="QR Code WhatsApp" class="w-64 h-64 rounded-xl border border-gray-200 shadow">
+                        <p class="text-xs text-orange-500 mt-3 font-semibold">QR berlaku ~60 detik. Akan diperbarui otomatis.</p>
+                    </div>
+                    <div id="wa-qr-placeholder" class="flex flex-col items-center text-center">
+                        <svg class="w-20 h-20 text-gray-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                        <p id="wa-qr-status-text" class="text-sm text-gray-400">QR tidak diperlukan saat bot terhubung</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Log koneksi -->
+            <div class="card p-6 mt-6">
+                <h3 class="text-sm font-semibold text-gray-600 mb-3">Log Koneksi</h3>
+                <div id="wa-log" class="space-y-1 max-h-40 overflow-y-auto text-xs font-mono text-gray-500"></div>
             </div>
         </main>
 
@@ -468,29 +541,22 @@
                     options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
                 });
 
-                const ctxLib = document.getElementById('libraryChart').getContext('2d');
-                if (libraryChart) libraryChart.destroy();
-                const totalBooks = data.charts.library_composition.total_books || 0;
-                const borrowed = data.charts.library_composition.borrowed || 0;
-                const available = totalBooks - borrowed;
-                libraryChart = new Chart(ctxLib, {
-                    type: 'doughnut',
-                    data: { labels: ['Tersedia di Rak', 'Sedang Dipinjam'], datasets: [{ data: [available, borrowed], backgroundColor: ['#10b981', '#f59e0b'], hoverOffset: 4 }] },
-                    options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
-                });
-
                 const tbody = document.getElementById('top-users-body');
                 tbody.innerHTML = '';
                 if (data.top_users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">Belum ada data</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Belum ada data</td></tr>';
                 } else {
                     data.top_users.forEach((user, index) => {
                         let badge = '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Aktif</span>';
                         if (index === 0) badge = '<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">👑 Duta Baca</span>';
                         const displayId = user.user_id.split('@')[0];
-                        tbody.innerHTML += `<tr>
+                        const nama = user.nama || '<span class="text-gray-300 italic">-</span>';
+                        const identitas = user.identitas_id || '<span class="text-gray-300 italic">-</span>';
+                        tbody.innerHTML += `<tr class="hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#${index + 1}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><a href="https://wa.me/${displayId}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">${displayId}</a></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${nama}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-500">${identitas}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-bold">${user.total} Chat</td>
                             <td class="px-6 py-4 whitespace-nowrap">${badge}</td>
                         </tr>`;
@@ -499,25 +565,97 @@
             } catch (error) { console.error(error); displayStatus("Gagal memuat data Dashboard.", false); }
         };
 
+        // --- EXPORT CHAT HISTORY CSV ---
+        const exportChatHistoryCSV = () => {
+            if (!chatHistoryData || chatHistoryData.length === 0) {
+                alert('Tidak ada data untuk diekspor. Muat data terlebih dahulu.');
+                return;
+            }
+
+            // Header kolom
+            const headers = ['Waktu', 'Nomor WA', 'Nama', 'NIM/ID', 'Konteks', 'Pesan Masuk', 'Balasan Bot'];
+
+            // Ambil data dari chatHistoryData (cache)
+            const csvRows = [headers.join(',')];
+            chatHistoryData.forEach(log => {
+                const escape = (val) => {
+                    const str = (val === null || val === undefined) ? '' : String(val);
+                    // Wrap dalam double quote, escape double quote dalam value
+                    return '"' + str.replace(/"/g, '""') + '"';
+                };
+                const cleanNumber = log.user_id ? log.user_id.split('@')[0] : '';
+                const row = [
+                    escape(new Date(log.timestamp).toLocaleString('id-ID')),
+                    escape(cleanNumber),
+                    escape(log.nama),
+                    escape(log.identitas_id),
+                    escape(log.context),
+                    escape(log.message_in),
+                    escape(log.message_out)
+                ];
+                csvRows.push(row.join(','));
+            });
+
+            const csvContent = '\uFEFF' + csvRows.join('\n'); // BOM untuk Excel agar UTF-8 terbaca
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const dateFrom = document.getElementById('filter-date-from').value;
+            const dateTo = document.getElementById('filter-date-to').value;
+            const now = new Date().toISOString().slice(0, 10);
+            const suffix = dateFrom && dateTo ? `${dateFrom}_sd_${dateTo}` : dateFrom ? `dari_${dateFrom}` : dateTo ? `sd_${dateTo}` : now;
+            link.href = url;
+            link.download = `riwayat-chat-${suffix}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+        };
+
+        // Cache data history untuk keperluan export
+        let chatHistoryData = [];
+
+        const resetFilterHistory = () => {
+            document.getElementById('filter-date-from').value = '';
+            document.getElementById('filter-date-to').value = '';
+            fetchChatHistory();
+        };
+
         // --- FETCH DATA HISTORY CHAT ---
         const fetchChatHistory = async () => {
             try {
-                const response = await fetch('http://localhost:3001/api/chat-history');
+                const dateFrom = document.getElementById('filter-date-from').value;
+                const dateTo = document.getElementById('filter-date-to').value;
+
+                let url = 'http://localhost:3001/api/chat-history';
+                const params = new URLSearchParams();
+                if (dateFrom) params.append('date_from', dateFrom);
+                if (dateTo) params.append('date_to', dateTo);
+                if (params.toString()) url += '?' + params.toString();
+
+                const response = await fetch(url);
                 const data = await response.json();
+                chatHistoryData = data; // cache untuk export
                 const tbody = document.getElementById('history-body');
-                
+                const countEl = document.getElementById('history-count');
+
                 if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-500">Belum ada riwayat percakapan.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-10 text-center text-gray-500">Belum ada riwayat percakapan.</td></tr>';
+                    if (countEl) countEl.textContent = '0 data ditemukan';
                     return;
                 }
+
+                if (countEl) countEl.textContent = `${data.length} data ditemukan`;
 
                 tbody.innerHTML = '';
                 data.forEach(log => {
                     const cleanNumber = log.user_id ? log.user_id.split('@')[0] : 'Unknown';
+                    const nama = log.nama || '<span class="text-gray-300 italic">-</span>';
+                    const identitas = log.identitas_id || '<span class="text-gray-300 italic">-</span>';
                     tbody.innerHTML += `
                         <tr class="hover:bg-gray-50 transition-colors">
                             <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs">${new Date(log.timestamp).toLocaleString('id-ID')}</td>
                             <td class="px-6 py-4 whitespace-nowrap"><a href="https://wa.me/${cleanNumber}" target="_blank" class="text-blue-600 font-medium hover:underline">${cleanNumber}</a></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-700 text-sm">${nama}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs font-mono">${identitas}</td>
                             <td class="px-6 py-4"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-[10px] font-bold uppercase">${log.context || 'General'}</span></td>
                             <td class="px-6 py-4 text-gray-700 max-w-xs truncate" title="${log.message_in}">${log.message_in}</td>
                             <td class="px-6 py-4 text-gray-500 italic max-w-xs truncate" title="${log.message_out}">${log.message_out || '-'}</td>
@@ -526,7 +664,7 @@
                 });
             } catch (err) {
                 console.error("Gagal load history:", err);
-                document.getElementById('history-body').innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-red-500 font-bold">Gagal mengambil data dari server.</td></tr>';
+                document.getElementById('history-body').innerHTML = '<tr><td colspan="7" class="px-6 py-10 text-center text-red-500 font-bold">Gagal mengambil data dari server.</td></tr>';
             }
         };
 
@@ -573,6 +711,7 @@
             document.getElementById('main-history').classList.add('hidden');
             document.getElementById('main-editor').classList.add('hidden');
             document.getElementById('main-users').classList.add('hidden');
+            document.getElementById('main-whatsapp').classList.add('hidden');
 
             const btnAdd = document.getElementById('btn-add-new-key');
             const btnSave = document.getElementById('btn-save-all');
@@ -586,6 +725,10 @@
                 document.getElementById('main-history').classList.remove('hidden');
                 btnAdd.classList.add('hidden'); btnSave.classList.add('hidden');
                 fetchChatHistory();
+            } else if (newCategory === 'whatsapp') {
+                document.getElementById('main-whatsapp').classList.remove('hidden');
+                btnAdd.classList.add('hidden'); btnSave.classList.add('hidden');
+                initWaConnection();
             } else if (newCategory === 'users') {
                 document.getElementById('main-users').classList.remove('hidden');
                 btnAdd.classList.add('hidden'); btnSave.classList.add('hidden');
@@ -646,6 +789,208 @@
                 } else throw new Error(result.message);
             } catch (error) { displayStatus(error.message, false); }
         };
+
+        // --- WEBSOCKET: KONEKSI WHATSAPP ---
+        let waWs = null;
+        let waWsInitialized = false;
+
+        const waLog = (msg, type = 'info') => {
+            const el = document.getElementById('wa-log');
+            if (!el) return;
+            const colors = { info: 'text-gray-500', success: 'text-green-600', error: 'text-red-500', warn: 'text-orange-500' };
+            const time = new Date().toLocaleTimeString('id-ID');
+            el.innerHTML += `<div class="${colors[type] || 'text-gray-500'}">[${time}] ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
+        };
+
+        const updateWaUI = (status, qr = null) => {
+            const dot = document.getElementById('wa-badge-dot');
+            const text = document.getElementById('wa-badge-text');
+            const badge = document.getElementById('wa-badge');
+            const btnLogout = document.getElementById('btn-wa-logout');
+            const hint = document.getElementById('wa-hint');
+            const qrContainer = document.getElementById('wa-qr-container');
+            const qrPlaceholder = document.getElementById('wa-qr-placeholder');
+            const qrImg = document.getElementById('wa-qr-img');
+            const qrStatusText = document.getElementById('wa-qr-status-text');
+            const sidebarDot = document.getElementById('wa-status-dot');
+            const sidebarText = document.getElementById('wa-status-text');
+
+            // Reset
+            dot.className = 'w-2.5 h-2.5 rounded-full';
+            badge.className = 'flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold';
+
+            const btnReconnect = document.getElementById('btn-wa-reconnect');
+
+            if (status === 'connected') {
+                dot.classList.add('bg-green-400', 'animate-pulse');
+                badge.classList.add('bg-green-100', 'text-green-700');
+                text.textContent = 'Terhubung';
+                btnLogout.classList.remove('hidden');
+                if (btnReconnect) btnReconnect.classList.add('hidden');
+                hint.textContent = 'Bot aktif dan siap menerima pesan.';
+                qrContainer.classList.add('hidden');
+                qrPlaceholder.classList.remove('hidden');
+                qrStatusText.textContent = 'QR tidak diperlukan saat bot terhubung';
+                if (sidebarDot) { sidebarDot.className = 'w-2 h-2 rounded-full bg-green-400 animate-pulse'; }
+                if (sidebarText) sidebarText.textContent = 'Bot Online';
+                waLog('WhatsApp terhubung.', 'success');
+            } else if (status === 'qr') {
+                dot.classList.add('bg-orange-400', 'animate-pulse');
+                badge.classList.add('bg-orange-100', 'text-orange-700');
+                text.textContent = 'Menunggu Scan QR';
+                btnLogout.classList.add('hidden');
+                if (btnReconnect) btnReconnect.classList.remove('hidden');
+                hint.textContent = 'Scan QR di sebelah kanan menggunakan WhatsApp.';
+                if (qr) {
+                    qrImg.src = qr;
+                    qrContainer.classList.remove('hidden');
+                    qrPlaceholder.classList.add('hidden');
+                }
+                if (sidebarDot) { sidebarDot.className = 'w-2 h-2 rounded-full bg-orange-400 animate-pulse'; }
+                if (sidebarText) sidebarText.textContent = 'Menunggu QR';
+                waLog('QR baru diterima. Silakan scan.', 'warn');
+            } else if (status === 'authenticated') {
+                dot.classList.add('bg-blue-400', 'animate-pulse');
+                badge.classList.add('bg-blue-100', 'text-blue-700');
+                text.textContent = 'Terautentikasi';
+                if (btnReconnect) btnReconnect.classList.add('hidden');
+                hint.textContent = 'QR berhasil di-scan. Menunggu koneksi penuh...';
+                qrContainer.classList.add('hidden');
+                qrPlaceholder.classList.remove('hidden');
+                qrStatusText.textContent = 'QR berhasil di-scan, menghubungkan...';
+                if (sidebarDot) { sidebarDot.className = 'w-2 h-2 rounded-full bg-blue-400 animate-pulse'; }
+                if (sidebarText) sidebarText.textContent = 'Menghubungkan...';
+                waLog('QR berhasil di-scan, menunggu koneksi penuh.', 'info');
+            } else if (status === 'loading') {
+                dot.classList.add('bg-blue-300', 'animate-pulse');
+                badge.classList.add('bg-blue-50', 'text-blue-500');
+                text.textContent = 'Memuat...';
+                if (btnReconnect) btnReconnect.classList.add('hidden');
+                hint.textContent = 'Bot sedang memuat WhatsApp Web.';
+                if (sidebarDot) { sidebarDot.className = 'w-2 h-2 rounded-full bg-blue-300 animate-pulse'; }
+                if (sidebarText) sidebarText.textContent = 'Memuat...';
+            } else {
+                // disconnected
+                dot.classList.add('bg-red-400');
+                badge.classList.add('bg-red-100', 'text-red-700');
+                text.textContent = 'Tidak Terhubung';
+                btnLogout.classList.add('hidden');
+                if (btnReconnect) btnReconnect.classList.remove('hidden');
+                hint.textContent = 'Klik Hubungkan untuk memulai koneksi WhatsApp.';
+                qrContainer.classList.add('hidden');
+                qrPlaceholder.classList.remove('hidden');
+                qrStatusText.textContent = 'Bot tidak terhubung';
+                if (sidebarDot) { sidebarDot.className = 'w-2 h-2 rounded-full bg-red-400'; }
+                if (sidebarText) sidebarText.textContent = 'Bot Offline';
+                waLog('WhatsApp terputus.', 'error');
+            }
+        };
+
+        const initWaConnection = () => {
+            // Jika WS sudah aktif, tidak perlu buat ulang
+            if (waWs && waWs.readyState === WebSocket.OPEN) return;
+
+            const wsUrl = `ws://${window.location.host}/admin/ws-gateway`;
+            waLog(`Menghubungkan ke ${wsUrl}...`);
+            waWs = new WebSocket(wsUrl);
+
+            waWs.onopen = () => {
+                waLog('WebSocket terhubung ke gateway.', 'success');
+            };
+
+            waWs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'status' || data.type === 'qr') {
+                        updateWaUI(data.status, data.qr || null);
+                    }
+                } catch (e) {
+                    waLog('Pesan tidak valid dari gateway.', 'error');
+                }
+            };
+
+            waWs.onerror = () => {
+                waLog('Gagal terhubung ke gateway. Pastikan wa_gateway.js berjalan.', 'error');
+                updateWaUI('disconnected');
+            };
+
+            waWs.onclose = () => {
+                waLog('Koneksi WebSocket terputus.', 'warn');
+                updateWaUI('disconnected');
+                // Auto reconnect setelah 5 detik
+                setTimeout(() => {
+                    if (document.getElementById('main-whatsapp') && !document.getElementById('main-whatsapp').classList.contains('hidden')) {
+                        waLog('Mencoba reconnect...');
+                        initWaConnection();
+                    }
+                }, 5000);
+            };
+        };
+
+        // Inisialisasi WS untuk sidebar status saat halaman load
+        const initWsSidebar = () => {
+            const wsUrl = `ws://${window.location.host}/admin/ws-gateway`;
+            const sidebarWs = new WebSocket(wsUrl);
+            sidebarWs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    const dot = document.getElementById('wa-status-dot');
+                    const txt = document.getElementById('wa-status-text');
+                    if (data.status === 'connected') {
+                        if (dot) dot.className = 'w-2 h-2 rounded-full bg-green-400 animate-pulse';
+                        if (txt) txt.textContent = 'Bot Online';
+                    } else if (data.status === 'qr') {
+                        if (dot) dot.className = 'w-2 h-2 rounded-full bg-orange-400 animate-pulse';
+                        if (txt) txt.textContent = 'Menunggu QR';
+                    } else {
+                        if (dot) dot.className = 'w-2 h-2 rounded-full bg-red-400';
+                        if (txt) txt.textContent = 'Bot Offline';
+                    }
+                } catch (e) {}
+            };
+            sidebarWs.onerror = () => {
+                const dot = document.getElementById('wa-status-dot');
+                const txt = document.getElementById('wa-status-text');
+                if (dot) dot.className = 'w-2 h-2 rounded-full bg-red-400';
+                if (txt) txt.textContent = 'Bot Offline';
+            };
+        };
+
+        // Reconnect button
+        document.getElementById('btn-wa-reconnect').addEventListener('click', async () => {
+            if (!confirm('Mulai proses reconnect? Bot akan terputus sementara dan QR baru akan muncul.')) return;
+            try {
+                const res = await fetch('http://localhost:3002/reconnect', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    waLog('Reconnect dimulai. Menunggu QR...', 'info');
+                    displayStatus('Proses reconnect dimulai. Pantau QR di halaman ini.');
+                } else {
+                    waLog('Gagal reconnect: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (err) {
+                waLog('Gagal menghubungi gateway: ' + err.message, 'error');
+                displayStatus('Gagal terhubung ke wa_gateway. Pastikan wa_gateway.js berjalan.', false);
+            }
+        });
+
+        // Logout WhatsApp button
+        document.getElementById('btn-wa-logout').addEventListener('click', async () => {
+            if (!confirm('Yakin ingin memutuskan koneksi WhatsApp? Bot tidak akan bisa menerima pesan sampai QR di-scan ulang.')) return;
+            try {
+                const res = await fetch('http://localhost:3002/logout', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    waLog('Logout berhasil. Klik Hubungkan untuk scan QR baru.', 'warn');
+                    displayStatus('WhatsApp berhasil diputus.');
+                } else {
+                    waLog('Gagal logout: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (err) {
+                waLog('Gagal menghubungi gateway: ' + err.message, 'error');
+            }
+        });
 
         // --- LOGOUT ---
         document.getElementById('btn-logout').addEventListener('click', async () => {
@@ -829,6 +1174,9 @@
 
             // Load session info
             loadMe();
+
+            // Init WS untuk status di sidebar
+            initWsSidebar();
 
             // Default Load: Dashboard
             document.querySelector('.sidebar-link[data-category="dashboard"]').click();

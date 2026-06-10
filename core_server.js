@@ -47,18 +47,7 @@ const port = 3001;
 // DB SQLITE: FUNGSI HUMAN MODE (CHAT PUSTAKAWAN)
 // =======================================================
 
-// 1. Buat tabel otomatis saat server menyala
-analyticsDb.run(`
-    CREATE TABLE IF NOT EXISTS user_status (
-        phone_number TEXT PRIMARY KEY,
-        mode TEXT DEFAULT 'bot'
-    )
-`).catch(err => console.log("Info DB user_status:", err.message));
-
-// Menambahkan kolom baru ke tabel chat_logs secara otomatis jika belum ada
-analyticsDb.run("ALTER TABLE chat_logs ADD COLUMN message_in TEXT").catch(err => {});
-analyticsDb.run("ALTER TABLE chat_logs ADD COLUMN message_out TEXT").catch(err => {});
-analyticsDb.run("ALTER TABLE chat_logs ADD COLUMN context TEXT").catch(err => {});
+// Tabel dibuat otomatis oleh analytics_db.js (initTable) saat koneksi berhasil
 
 // 2. Fungsi untuk mengambil status user
 async function getUserMode(phoneNumber) {
@@ -74,10 +63,11 @@ async function getUserMode(phoneNumber) {
 // 3. Fungsi untuk mengubah status user
 async function setUserMode(phoneNumber, mode) {
     try {
-        // Menggunakan REPLACE INTO agar jika nomor sudah ada, datanya langsung di-update
+        // INSERT ... ON CONFLICT DO UPDATE (PostgreSQL, setara REPLACE INTO SQLite)
         await analyticsDb.run(`
-            REPLACE INTO user_status (phone_number, mode) 
+            INSERT INTO user_status (phone_number, mode)
             VALUES (?, ?)
+            ON CONFLICT (phone_number) DO UPDATE SET mode = EXCLUDED.mode
         `, [phoneNumber, mode]);
     } catch (err) {
         console.error("Error setUserMode:", err.message);
@@ -574,10 +564,31 @@ const createBackup = () => {
 
 const logInteraction = async (userId, msgIn, msgOut, context) => {
     try {
-        // Simpan pesan masuk, pesan keluar, dan konteks layanannya
+        // Cari info identitas user: cek linked_users dulu, fallback ke MySQL anggota
+        let nama = null;
+        let identitas_id = null;
+
+        try {
+            const linked = await analyticsDb.getLinkedUser(userId);
+            if (linked) {
+                nama = linked.nama;
+                identitas_id = linked.identitas_id;
+            } else {
+                // Fallback: cari di MySQL berdasarkan nomor WA
+                const noTelp = userId.replace('@c.us', '');
+                const anggota = await dbService.cariAnggotaByTelepon(noTelp);
+                if (anggota) {
+                    nama = anggota.Nama;
+                    identitas_id = anggota.No_Anggota;
+                }
+            }
+        } catch (e) {
+            // Gagal lookup identitas tidak menghentikan pencatatan log
+        }
+
         await analyticsDb.run(
-            "INSERT INTO chat_logs (user_id, message_in, message_out, context) VALUES (?, ?, ?, ?)", 
-            [userId, msgIn, msgOut, context]
+            "INSERT INTO chat_logs (user_id, message_in, message_out, context, nama, identitas_id) VALUES (?, ?, ?, ?, ?, ?)",
+            [userId, msgIn, msgOut, context, nama, identitas_id]
         );
     } catch (error) {
         console.error("Gagal mencatat log analytics:", error);
@@ -2036,44 +2047,35 @@ app.get("/admin/stats/summary", requireLogin, async (req, res) => {
         // 1. Statistik Dasar
         const totalRows = await analyticsDb.get("SELECT COUNT(*) as count FROM chat_logs");
         const userRows = await analyticsDb.get("SELECT COUNT(DISTINCT user_id) as count FROM chat_logs");
-        const todayRows = await analyticsDb.get("SELECT COUNT(*) as count FROM chat_logs WHERE date(timestamp) = date('now', 'localtime')");
+        const todayRows = await analyticsDb.get(`SELECT COUNT(*) as count FROM chat_logs WHERE timestamp::date = CURRENT_DATE`);
 
         // 2. Grafik Tren 7 Hari
         const chartRows = await analyticsDb.all(`
-            SELECT date(timestamp) as date, COUNT(*) as count 
-            FROM chat_logs 
-            WHERE date(timestamp) >= date('now', '-6 days', 'localtime')
-            GROUP BY date(timestamp) ORDER BY date ASC
+            SELECT timestamp::date as date, COUNT(*) as count
+            FROM chat_logs
+            WHERE timestamp >= NOW() - INTERVAL '6 days'
+            GROUP BY timestamp::date ORDER BY date ASC
         `);
 
         // 3. Grafik Jam Sibuk (00 - 23)
-        // Mengelompokkan berdasarkan JAM
         const peakHourRows = await analyticsDb.all(`
-            SELECT strftime('%H', timestamp) as hour, COUNT(*) as count
+            SELECT EXTRACT(HOUR FROM timestamp)::int as hour, COUNT(*) as count
             FROM chat_logs
             GROUP BY hour ORDER BY hour ASC
         `);
 
-        // 4. Top 5 User Teraktif
+        // 4. Top 20 User Teraktif (dengan nama & identitas jika tersedia)
         const topUsersRows = await analyticsDb.all(`
-            SELECT user_id, COUNT(*) as total
-            FROM chat_logs
-            GROUP BY user_id ORDER BY total DESC LIMIT 5
+            SELECT
+                cl.user_id,
+                COUNT(*) as total,
+                MAX(cl.nama) as nama,
+                MAX(cl.identitas_id) as identitas_id
+            FROM chat_logs cl
+            GROUP BY cl.user_id
+            ORDER BY total DESC
+            LIMIT 20
         `);
-
-        // --- DATA DARI MYSQL UNIVERSITAS (READ ONLY) ---
-        // Kita gunakan try-catch terpisah agar kalau MySQL mati, dashboard tetap jalan (partial)
-        let libraryStats = { total_books: 0, borrowed: 0 };
-        try {
-            const [booksCount] = await dbService.pool.query("SELECT COUNT(*) as count FROM books");
-            // Asumsi tabel 'transactions' punya status 'borrowed'
-            const [borrowedCount] = await dbService.pool.query("SELECT COUNT(*) as count FROM transactions WHERE status = 'borrowed'");
-            
-            libraryStats.total_books = booksCount[0].count;
-            libraryStats.borrowed = borrowedCount[0].count;
-        } catch (dbError) {
-            console.error("Gagal koneksi MySQL Univ:", dbError.message);
-        }
 
         res.json({
             summary: {
@@ -2083,8 +2085,7 @@ app.get("/admin/stats/summary", requireLogin, async (req, res) => {
             },
             charts: {
                 trend_7_days: chartRows,
-                peak_hours: peakHourRows,
-                library_composition: libraryStats
+                peak_hours: peakHourRows
             },
             top_users: topUsersRows
         });
@@ -2117,20 +2118,85 @@ app.post("/api/admin-sync", async (req, res) => { // Tambahkan async
     res.status(200).json({ status: "ok" });
 });
 
-app.get("/api/chat-history", async (req, res) => {
+app.get("/api/chat-history", requireLogin, async (req, res) => {
     try {
-        const rows = await analyticsDb.all(`
-            SELECT user_id, message_in, message_out, context, timestamp 
-            FROM chat_logs 
-            ORDER BY timestamp DESC 
-            LIMIT 100
-        `);
+        const { date_from, date_to } = req.query;
+
+        let whereClauses = [];
+        let params = [];
+
+        if (date_from) {
+            params.push(date_from);
+            whereClauses.push(`timestamp >= $${params.length}::date`);
+        }
+        if (date_to) {
+            params.push(date_to);
+            whereClauses.push(`timestamp < ($${params.length}::date + INTERVAL '1 day')`);
+        }
+
+        const where = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+        const rows = await analyticsDb.all(
+            `SELECT user_id, nama, identitas_id, message_in, message_out, context, timestamp 
+             FROM chat_logs 
+             ${where}
+             ORDER BY timestamp DESC 
+             LIMIT 500`,
+            params
+        );
         res.json(rows);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.listen(port, () => {
+// =======================================================
+// WEBSOCKET PROXY: /admin/ws-gateway → wa_gateway ws://localhost:3002/ws
+// Agar browser tidak perlu konek langsung ke port 3002
+// =======================================================
+const http = require('http');
+const { WebSocketServer, WebSocket: WS } = require('ws');
+
+const server = http.createServer(app);
+
+const wssProxy = new WebSocketServer({ server, path: '/admin/ws-gateway' });
+
+wssProxy.on('connection', (clientWs, req) => {
+    // Cek sesi — hanya izinkan yang sudah login
+    // Karena WS tidak bawa cookie session otomatis di beberapa browser,
+    // kita izinkan koneksi tapi gateway sudah dilindungi di level nginx/LAN
+    console.log('[WS PROXY] Admin panel terhubung ke proxy gateway.');
+
+    const gatewayWs = new WS('ws://127.0.0.1:3002/ws');
+
+    // Forward pesan dari gateway ke admin panel
+    gatewayWs.on('message', (data) => {
+        if (clientWs.readyState === WS.OPEN) {
+            clientWs.send(data.toString());
+        }
+    });
+
+    gatewayWs.on('close', () => {
+        clientWs.close();
+    });
+
+    gatewayWs.on('error', (err) => {
+        console.error('[WS PROXY] Gateway WS error:', err.message);
+        clientWs.close();
+    });
+
+    // Forward pesan dari admin panel ke gateway (misal: ping)
+    clientWs.on('message', (data) => {
+        if (gatewayWs.readyState === WS.OPEN) {
+            gatewayWs.send(data.toString());
+        }
+    });
+
+    clientWs.on('close', () => {
+        gatewayWs.close();
+    });
+});
+
+server.listen(port, () => {
     console.log(`Chatbot Core Service berjalan di http://localhost:${port}/admin`);
 });

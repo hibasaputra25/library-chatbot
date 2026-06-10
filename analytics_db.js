@@ -1,134 +1,154 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+// analytics_db.js — PostgreSQL version
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-// Nama file database lokal
-const dbPath = path.resolve(__dirname, 'analytics.db');
-
-// Koneksi ke SQLite
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('[SQLITE] Gagal membuka database analytics:', err.message);
-    } else {
-        console.log('[SQLITE] Terhubung ke database analytics lokal.');
-        
-        // ==========================================================
-        // PENGATURAN ANTI-BENTROK (Mencegah Database Locked / Busy)
-        // ==========================================================
-        db.run('PRAGMA journal_mode = WAL;');
-        db.run('PRAGMA busy_timeout = 5000;');
-        
-        initTable(); // Buat tabel otomatis saat start
-    }
+// Koneksi pool ke PostgreSQL
+const pool = new Pool({
+    host:     process.env.PG_HOST     || 'localhost',
+    port:     parseInt(process.env.PG_PORT || '5432'),
+    database: process.env.PG_DATABASE || 'chatbot_analytics',
+    user:     process.env.PG_USER     || 'postgres',
+    password: process.env.PG_PASSWORD || '',
+    // Maksimal 10 koneksi aktif sekaligus
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
 });
 
-// Fungsi Membuat Tabel (Hanya jika belum ada)
-function initTable() {
-    // =======================================================
-    // 1. TABEL : CHAT_LOGS
-    // =======================================================
-    const query = `
-    CREATE TABLE IF NOT EXISTS chat_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id TEXT NOT NULL,
-        message_in TEXT,
-        message_out TEXT,
-        context TEXT,
-        timestamp DATETIME DEFAULT (datetime('now', 'localtime'))
-    )`;
-    
-    db.run(query, (err) => {
-        if (err) console.error('[SQLITE] Gagal buat tabel:', err.message);
-        else console.log('[SQLITE] Tabel chat_logs siap.');
-    });
+pool.on('connect', () => {
+    console.log('[PG] Koneksi baru ke PostgreSQL berhasil.');
+});
 
-    // =======================================================
-    // 2. TABEL BARU: LINKED USERS (Pengikat WA & NIM)
-    // =======================================================
-    const queryUsers = `
-    CREATE TABLE IF NOT EXISTS linked_users (
-        nomor_wa TEXT PRIMARY KEY,
-        identitas_id TEXT NOT NULL,
-        nama TEXT NOT NULL,
-        role TEXT NOT NULL,
-        status_verifikasi TEXT NOT NULL,
-        timestamp DATETIME DEFAULT (datetime('now', 'localtime'))
-    )`;
+pool.on('error', (err) => {
+    console.error('[PG] Unexpected error on idle client:', err.message);
+});
 
-    db.run(queryUsers, (err) => {
-        if (err) console.error('[SQLITE] Gagal buat tabel users:', err.message);
-        else console.log('[SQLITE] Tabel linked_users siap.');
-    });
-
-    // =======================================================
-    // 3. TABEL: ADMIN USERS (Login Pustakawan)
-    // =======================================================
-    const queryAdminUsers = `
-    CREATE TABLE IF NOT EXISTS admin_users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        nama TEXT NOT NULL,
-        nomor_wa TEXT NOT NULL,
-        created_at DATETIME DEFAULT (datetime('now', 'localtime')),
-        last_login DATETIME
-    )`;
-
-    db.run(queryAdminUsers, (err) => {
-        if (err) console.error('[SQLITE] Gagal buat tabel admin_users:', err.message);
-        else {
-            console.log('[SQLITE] Tabel admin_users siap.');
-            bootstrapAdminUser();
-        }
-    });
-
-    // =======================================================
-    // 4. TABEL: OTP TOKENS (Forgot Password)
-    // =======================================================
-    const queryOtp = `
-    CREATE TABLE IF NOT EXISTS otp_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL,
-        otp_code TEXT NOT NULL,
-        expires_at DATETIME NOT NULL,
-        used INTEGER DEFAULT 0
-    )`;
-
-    db.run(queryOtp, (err) => {
-        if (err) console.error('[SQLITE] Gagal buat tabel otp_tokens:', err.message);
-        else console.log('[SQLITE] Tabel otp_tokens siap.');
-    });
+// =======================================================
+// WRAPPER QUERY — kompatibel dengan kode lama
+// SQLite pakai ? sebagai placeholder, PostgreSQL pakai $1 $2 dst
+// Fungsi ini otomatis konversi ? ke $1, $2, ...
+// =======================================================
+function convertPlaceholders(sql) {
+    let i = 0;
+    return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-// Wrapper agar bisa pakai Async/Await (SQLite bawaan pakai callback)
-function run(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.run(sql, params, function (err) {
-            if (err) reject(err);
-            else resolve(this);
-        });
-    });
+async function run(sql, params = []) {
+    const query = convertPlaceholders(sql);
+    const result = await pool.query(query, params);
+    // Kembalikan object mirip SQLite: { lastID, changes }
+    return {
+        lastID: result.rows[0]?.id || null,
+        changes: result.rowCount
+    };
 }
 
-function get(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.get(sql, params, (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-        });
-    });
+async function get(sql, params = []) {
+    const query = convertPlaceholders(sql);
+    const result = await pool.query(query, params);
+    return result.rows[0] || null;
 }
 
-function all(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-        });
-    });
+async function all(sql, params = []) {
+    const query = convertPlaceholders(sql);
+    const result = await pool.query(query, params);
+    return result.rows;
 }
 
-// Bootstrap akun admin pertama dari .env jika tabel masih kosong
+// =======================================================
+// INIT TABEL — buat semua tabel jika belum ada
+// =======================================================
+async function initTable() {
+    try {
+        // 1. TABEL: CHAT_LOGS
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS chat_logs (
+                id          SERIAL PRIMARY KEY,
+                user_id     TEXT NOT NULL,
+                message_in  TEXT,
+                message_out TEXT,
+                context     TEXT,
+                timestamp   TIMESTAMPTZ DEFAULT NOW()
+            )
+        `);
+        console.log('[PG] Tabel chat_logs siap.');
+
+        // 2. TABEL: LINKED USERS
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS linked_users (
+                nomor_wa           TEXT PRIMARY KEY,
+                identitas_id       TEXT NOT NULL,
+                nama               TEXT NOT NULL,
+                role               TEXT NOT NULL,
+                status_verifikasi  TEXT NOT NULL,
+                timestamp          TIMESTAMPTZ DEFAULT NOW()
+            )
+        `);
+        console.log('[PG] Tabel linked_users siap.');
+
+        // 3. TABEL: USER STATUS (human/bot mode)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_status (
+                phone_number TEXT PRIMARY KEY,
+                mode         TEXT DEFAULT 'bot'
+            )
+        `);
+        console.log('[PG] Tabel user_status siap.');
+
+        // 4. TABEL: ADMIN USERS
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS admin_users (
+                id            SERIAL PRIMARY KEY,
+                username      TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                nama          TEXT NOT NULL,
+                nomor_wa      TEXT NOT NULL,
+                created_at    TIMESTAMPTZ DEFAULT NOW(),
+                last_login    TIMESTAMPTZ
+            )
+        `);
+        console.log('[PG] Tabel admin_users siap.');
+
+        // 5. TABEL: OTP TOKENS
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS otp_tokens (
+                id         SERIAL PRIMARY KEY,
+                username   TEXT NOT NULL,
+                otp_code   TEXT NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                used       INTEGER DEFAULT 0
+            )
+        `);
+        console.log('[PG] Tabel otp_tokens siap.');
+
+        // 6. Tambah kolom nama & identitas_id ke chat_logs jika belum ada
+        await pool.query(`ALTER TABLE chat_logs ADD COLUMN IF NOT EXISTS nama TEXT`).catch(() => {});
+        await pool.query(`ALTER TABLE chat_logs ADD COLUMN IF NOT EXISTS identitas_id TEXT`).catch(() => {});
+        console.log('[PG] Kolom nama & identitas_id di chat_logs siap.');
+
+        // Jalankan bootstrap setelah tabel siap
+        await bootstrapAdminUser();
+
+    } catch (err) {
+        console.error('[PG] Gagal inisialisasi tabel:', err.message);
+        process.exit(1);
+    }
+}
+
+// Test koneksi lalu init tabel
+pool.query('SELECT NOW()')
+    .then(() => {
+        console.log('[PG] Terhubung ke database PostgreSQL.');
+        initTable();
+    })
+    .catch(err => {
+        console.error('[PG] Gagal terhubung ke PostgreSQL:', err.message);
+        process.exit(1);
+    });
+
+// =======================================================
+// BOOTSTRAP ADMIN PERTAMA
+// =======================================================
 async function bootstrapAdminUser() {
     const adminUser = process.env.ADMIN_USER;
     const adminPass = process.env.ADMIN_PASS;
@@ -142,11 +162,11 @@ async function bootstrapAdminUser() {
 
     try {
         const existing = await get(`SELECT id FROM admin_users WHERE username = ?`, [adminUser]);
-        if (existing) return; // sudah ada, skip
+        if (existing) return;
 
         const hash = await bcrypt.hash(adminPass, 12);
-        await run(
-            `INSERT INTO admin_users (username, password_hash, nama, nomor_wa) VALUES (?, ?, ?, ?)`,
+        await pool.query(
+            `INSERT INTO admin_users (username, password_hash, nama, nomor_wa) VALUES ($1, $2, $3, $4)`,
             [adminUser, hash, adminNama, adminWa]
         );
         console.log(`[ADMIN] Akun admin pertama '${adminUser}' berhasil dibuat dari .env.`);
@@ -155,8 +175,9 @@ async function bootstrapAdminUser() {
     }
 }
 
-// --- CRUD admin_users ---
-
+// =======================================================
+// CRUD ADMIN USERS
+// =======================================================
 async function getAllAdminUsers() {
     return all(`SELECT id, username, nama, nomor_wa, created_at, last_login FROM admin_users ORDER BY id`);
 }
@@ -194,53 +215,62 @@ async function deleteAdminUser(id) {
 }
 
 async function updateLastLogin(id) {
-    return run(`UPDATE admin_users SET last_login = datetime('now', 'localtime') WHERE id = ?`, [id]);
+    return run(`UPDATE admin_users SET last_login = NOW() WHERE id = ?`, [id]);
 }
 
-// --- OTP helpers ---
-
+// =======================================================
+// OTP HELPERS
+// =======================================================
 async function createOtp(username) {
-    // Hapus OTP lama milik user ini dulu
-    await run(`DELETE FROM otp_tokens WHERE username = ?`, [username]);
+    await pool.query(`DELETE FROM otp_tokens WHERE username = $1`, [username]);
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit
-    // Simpan expires_at dalam UTC agar konsisten dengan datetime('now') SQLite
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000)
-        .toISOString().replace('T', ' ').substring(0, 19);
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 menit dari sekarang
 
-    await run(
-        `INSERT INTO otp_tokens (username, otp_code, expires_at) VALUES (?, ?, ?)`,
+    await pool.query(
+        `INSERT INTO otp_tokens (username, otp_code, expires_at) VALUES ($1, $2, $3)`,
         [username, code, expiresAt]
     );
     return code;
 }
 
 async function verifyOtp(username, code) {
-    const row = await get(
+    const result = await pool.query(
         `SELECT * FROM otp_tokens
-         WHERE username = ? AND otp_code = ? AND used = 0
-           AND expires_at > datetime('now')
+         WHERE username = $1 AND otp_code = $2 AND used = 0
+           AND expires_at > NOW()
          ORDER BY id DESC LIMIT 1`,
         [username, code]
     );
+    const row = result.rows[0];
     if (!row) return false;
-    await run(`UPDATE otp_tokens SET used = 1 WHERE id = ?`, [row.id]);
+    await pool.query(`UPDATE otp_tokens SET used = 1 WHERE id = $1`, [row.id]);
     return true;
 }
 
+// =======================================================
+// LINKED USERS
+// =======================================================
 function getLinkedUser(nomor_wa) {
     return get(`SELECT * FROM linked_users WHERE nomor_wa = ?`, [nomor_wa]);
 }
 
 function saveLinkedUser(nomor_wa, identitas_id, nama, role, status_verifikasi) {
-    return run(
-        `INSERT OR REPLACE INTO linked_users (nomor_wa, identitas_id, nama, role, status_verifikasi) VALUES (?, ?, ?, ?, ?)`, 
+    // PostgreSQL: INSERT ... ON CONFLICT DO UPDATE (setara REPLACE INTO di SQLite)
+    return pool.query(
+        `INSERT INTO linked_users (nomor_wa, identitas_id, nama, role, status_verifikasi)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (nomor_wa) DO UPDATE
+         SET identitas_id = EXCLUDED.identitas_id,
+             nama = EXCLUDED.nama,
+             role = EXCLUDED.role,
+             status_verifikasi = EXCLUDED.status_verifikasi`,
         [nomor_wa, identitas_id, nama, role, status_verifikasi]
     );
 }
 
 module.exports = {
-    db, run, get, all,
+    pool, run, get, all,
     getLinkedUser, saveLinkedUser,
     getAllAdminUsers, getAdminUserByUsername, getAdminUserById,
     createAdminUser, updateAdminUser, updateAdminPassword, deleteAdminUser, updateLastLogin,

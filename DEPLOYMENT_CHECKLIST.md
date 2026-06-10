@@ -86,29 +86,30 @@ chmod +x install_ubuntu.sh
 
 #### Step 3: Setup Database
 
-```bash
-# Secure MySQL
-sudo mysql_secure_installation
-# - Set root password
-# - Remove anonymous users: YES
-# - Disallow root login remotely: YES
-# - Remove test database: YES
+**MySQL** — digunakan untuk data buku, anggota, sirkulasi (remote ke server kampus, tidak perlu install).
+Pastikan `.env` sudah berisi `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` yang mengarah ke server MySQL kampus.
 
-# Create database & user
-sudo mysql
+**PostgreSQL** — digunakan untuk analytics, sessions, admin users.
+
+**Opsi A: PostgreSQL di server yang sama (jalankan otomatis via install_ubuntu.sh)**
+```bash
+# install_ubuntu.sh akan menanyakan apakah ingin install PostgreSQL lokal
+# Jawab 'y' dan ikuti prompt untuk buat database dan user
 ```
 
-```sql
-CREATE DATABASE lib1 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'biroperpustakaan'@'localhost' IDENTIFIED BY 'Perpustakaan@2025!.';
-GRANT ALL PRIVILEGES ON lib1.* TO 'biroperpustakaan'@'localhost';
-FLUSH PRIVILEGES;
-EXIT;
+**Opsi B: PostgreSQL di server IT kampus (remote)**
+```bash
+# Minta IT kampus untuk:
+# 1. Buat database: chatbot_analytics
+# 2. Buat user dan beri akses ke database tersebut
+# 3. Buka koneksi dari IP server chatbot (10.1.1.129)
+# Lalu isi .env dengan credentials yang diberikan IT
 ```
 
+**Verifikasi koneksi PostgreSQL:**
 ```bash
-# Import data (jika ada backup dari Windows)
-mysql -u biroperpustakaan -p lib1 < backup_database.sql
+psql -h <PG_HOST> -U <PG_USER> -d <PG_DATABASE> -c "SELECT NOW();"
+# Jika berhasil, tabel akan dibuat otomatis saat aplikasi pertama kali dijalankan
 ```
 
 #### Step 4: Configure Application
@@ -122,15 +123,46 @@ npm install --production
 # Setup environment
 cp .env.example .env
 nano .env
-# Update semua values untuk production
-# Terutama:
-# - DB_HOST=localhost
-# - ADMIN_PASS (password kuat!)
-# - NODE_ENV=production
+```
 
+Variabel wajib diisi di `.env`:
+
+```env
+# MySQL kampus (data buku/anggota)
+DB_HOST=<ip_mysql_kampus>
+DB_USER=<user_mysql>
+DB_PASSWORD=<password_mysql>
+DB_NAME=<nama_database>
+
+# PostgreSQL analytics (lokal atau server IT)
+PG_HOST=localhost
+PG_PORT=5432
+PG_DATABASE=chatbot_analytics
+PG_USER=<pg_user>
+PG_PASSWORD=<pg_password>
+
+# Admin panel
+ADMIN_USER=<username_admin>
+ADMIN_PASS=<password_kuat_min_8_karakter>
+ADMIN_NAMA=<nama_pustakawan_pertama>
+ADMIN_WA_NUMBER=<nomor_wa_admin_format_628xxx>
+
+# Session (generate dengan: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+SESSION_SECRET=<string_acak_panjang>
+
+# AI
+GROQ_API_KEY=<groq_api_key>
+GEMINI_API_KEY=<gemini_api_key>
+
+# WhatsApp Gateway
+WA_GATEWAY_URL=http://127.0.0.1:3002/send-direct
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+NODE_ENV=production
+```
+
+```bash
 # Set permissions
 chmod 600 .env
-chmod 600 analytics.db
 mkdir -p logs
 chmod 700 logs
 ```
@@ -215,13 +247,20 @@ sudo ufw status
 #### Step 9: Scan WhatsApp QR Code
 
 ```bash
-# Watch logs untuk QR code
-pm2 logs chatbot-gateway
-
-# QR code akan muncul di terminal
-# Scan dengan WhatsApp di HP Anda:
+# Opsi A: Scan via Admin Panel (Recommended)
+# Buka browser: http://10.1.1.129/admin
+# Login dengan ADMIN_USER / ADMIN_PASS
+# Klik menu "Koneksi WhatsApp" di sidebar
+# Klik tombol "Hubungkan / Reconnect"
+# Scan QR yang muncul dengan WhatsApp di HP:
 # WhatsApp > Menu > Linked Devices > Link a Device
+
+# Opsi B: Scan via terminal logs
+pm2 logs chatbot-gateway
+# QR code akan muncul sebagai ASCII art di terminal
 ```
+
+> **Tip:** Jika QR tidak muncul, klik tombol "Hubungkan / Reconnect" di admin panel tanpa perlu restart PM2.
 
 #### Step 10: Testing
 
@@ -253,31 +292,33 @@ curl https://your-domain.com/admin
 
 - [ ] System updated (`apt update && upgrade`)
 - [ ] Node.js installed & verified (`node --version`)
-- [ ] MySQL installed & running (`systemctl status mysql`)
-- [ ] Chromium & dependencies installed
+- [ ] Chromium installed (`which chromium-browser`)
 - [ ] PM2 installed globally (`pm2 --version`)
-- [ ] Nginx installed & running (`systemctl status nginx`)
-- [ ] Certbot installed (for SSL)
-- [ ] Fail2Ban installed (for security)
+- [ ] PostgreSQL installed atau remote PG server tersedia
 
 ### Database Setup
 
-- [ ] MySQL secured (`mysql_secure_installation`)
-- [ ] Database `lib1` created
-- [ ] User `biroperpustakaan` created with privileges
-- [ ] Table structures created
-- [ ] Data imported (if any)
-- [ ] Connection tested from app
+- [ ] MySQL kampus: koneksi dari server chatbot berhasil
+- [ ] PostgreSQL: database `chatbot_analytics` siap
+- [ ] PostgreSQL: user dengan akses ke database dibuat
+- [ ] Koneksi PG diverifikasi (`psql -h <host> -U <user> -d chatbot_analytics -c "SELECT NOW();")`
+- [ ] Tabel akan dibuat otomatis oleh aplikasi saat pertama kali start
 
 ### Application Configuration
 
 - [ ] Project uploaded/cloned to `~/apps/server_chatbot`
 - [ ] `npm install` completed without errors
 - [ ] `.env` configured dengan values production
+- [ ] Semua variabel wajib diisi:
+  - [ ] `DB_*` (MySQL kampus)
+  - [ ] `PG_*` (PostgreSQL analytics)
+  - [ ] `ADMIN_USER`, `ADMIN_PASS`, `ADMIN_NAMA`, `ADMIN_WA_NUMBER`
+  - [ ] `SESSION_SECRET` (string acak panjang)
+  - [ ] `GROQ_API_KEY` / `GEMINI_API_KEY`
+  - [ ] `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser`
 - [ ] File permissions set correctly:
   - [ ] `.env` = 600 (read/write owner only)
   - [ ] `logs/` = 700 (rwx owner only)
-  - [ ] `analytics.db` = 600
 - [ ] `ecosystem.config.js` reviewed
 
 ### PM2 Setup
@@ -326,11 +367,12 @@ curl https://your-domain.com/admin
 ### WhatsApp Integration
 
 - [ ] wa_gateway started successfully
-- [ ] QR code displayed in logs
+- [ ] QR code muncul di Admin Panel (menu Koneksi WhatsApp) atau di logs
 - [ ] QR code scanned with WhatsApp
-- [ ] WhatsApp connection established
+- [ ] WhatsApp connection established (status: Terhubung di admin panel)
 - [ ] Session saved in `.wwebjs_auth/`
 - [ ] Test message sent & received
+- [ ] Reconnect via admin panel berfungsi (tanpa restart PM2)
 
 ### Testing
 
@@ -422,15 +464,25 @@ node core_server.js  # Run directly to see errors
 ### Database Connection Error
 
 ```bash
-mysql -u biroperpustakaan -p lib1 -e "SELECT 1;"
-sudo systemctl status mysql
+# MySQL kampus
 cat .env | grep DB_
+mysql -h $DB_HOST -u $DB_USER -p $DB_NAME -e "SELECT 1;"
+
+# PostgreSQL analytics
+cat .env | grep PG_
+psql -h $PG_HOST -U $PG_USER -d $PG_DATABASE -c "SELECT NOW();"
+sudo systemctl status postgresql  # jika PostgreSQL lokal
 ```
 
 ### WhatsApp Not Connecting
 
 ```bash
 pm2 logs chatbot-gateway --lines 100
+
+# Opsi 1: Reconnect via admin panel (tanpa restart)
+# Buka http://10.1.1.129/admin → Koneksi WhatsApp → Hubungkan
+
+# Opsi 2: Hapus sesi dan restart (jika opsi 1 gagal)
 rm -rf .wwebjs_auth
 pm2 restart chatbot-gateway
 ```
