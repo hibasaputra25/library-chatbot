@@ -961,7 +961,7 @@
         document.getElementById('btn-wa-reconnect').addEventListener('click', async () => {
             if (!confirm('Mulai proses reconnect? Bot akan terputus sementara dan QR baru akan muncul.')) return;
             try {
-                const res = await fetch('http://localhost:3002/reconnect', { method: 'POST' });
+                const res = await fetch('/wa-gateway/reconnect', { method: 'POST' });
                 const data = await res.json();
                 if (res.ok) {
                     waLog('Reconnect dimulai. Menunggu QR...', 'info');
@@ -979,7 +979,7 @@
         document.getElementById('btn-wa-logout').addEventListener('click', async () => {
             if (!confirm('Yakin ingin memutuskan koneksi WhatsApp? Bot tidak akan bisa menerima pesan sampai QR di-scan ulang.')) return;
             try {
-                const res = await fetch('http://localhost:3002/logout', { method: 'POST' });
+                const res = await fetch('/wa-gateway/logout', { method: 'POST' });
                 const data = await res.json();
                 if (res.ok) {
                     waLog('Logout berhasil. Klik Hubungkan untuk scan QR baru.', 'warn');
