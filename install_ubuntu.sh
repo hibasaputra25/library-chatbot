@@ -43,7 +43,7 @@ echo "================================"
 echo "  PUSTAKABOT UBUNTU INSTALLER"
 echo "================================"
 echo ""
-info "This will install: Node.js, Chromium, PM2"
+info "This will install: Node.js, Chromium, Nginx, PostgreSQL (optional), PM2"
 info "Skipping MySQL (database is on remote server)"
 echo ""
 
@@ -97,7 +97,20 @@ else
 fi
 
 # ==============================
-# 5. INSTALL POSTGRESQL
+# 5. INSTALL NGINX
+# ==============================
+if command -v nginx &> /dev/null; then
+    warn "Nginx already installed: $(nginx -v 2>&1)"
+else
+    info "Installing Nginx..."
+    sudo apt install -y nginx
+    sudo systemctl enable nginx
+    sudo systemctl start nginx
+    ok "Nginx installed: $(nginx -v 2>&1)"
+fi
+
+# ==============================
+# 6. INSTALL POSTGRESQL
 # ==============================
 info "Checking PostgreSQL..."
 if command -v psql &> /dev/null; then
@@ -127,7 +140,7 @@ else
         ok "PostgreSQL database '$PG_DB' dan user '$PG_USER' berhasil dibuat."
         warn "Tambahkan ke .env: PG_HOST=localhost PG_DATABASE=$PG_DB PG_USER=$PG_USER PG_PASSWORD=<password>"
     else
-        warn "Skip instalasi PostgreSQL. Pastikan PG_HOST, PG_DATABASE, PG_USER, PG_PASSWORD di .env sudah dikonfigurasi ke server PostgreSQL Anda."
+        warn "Skip instalasi PostgreSQL. Pastikan PG_* di .env sudah dikonfigurasi ke server PostgreSQL Anda."
     fi
 fi
 
@@ -144,17 +157,6 @@ fi
 
 # ==============================
 # 8. SETUP PM2 STARTUP
-# ==============================
-if command -v pm2 &> /dev/null; then
-    warn "PM2 already installed: $(pm2 --version)"
-else
-    info "Installing PM2..."
-    npm install -g pm2
-    ok "PM2 installed: $(pm2 --version)"
-fi
-
-# ==============================
-# 6. SETUP PM2 STARTUP
 # ==============================
 info "Configuring PM2 startup..."
 PM2_STARTUP=$(pm2 startup 2>&1 | grep "sudo env")
@@ -174,28 +176,45 @@ echo "  INSTALLATION COMPLETE"
 echo "================================"
 echo ""
 echo "Installed:"
-echo "  Node.js: $(node --version 2>/dev/null || echo 'NOT INSTALLED')"
-echo "  NPM:     $(npm --version 2>/dev/null || echo 'NOT INSTALLED')"
-echo "  PM2:     $(pm2 --version 2>/dev/null || echo 'NOT INSTALLED')"
+echo "  Node.js:  $(node --version 2>/dev/null || echo 'NOT INSTALLED')"
+echo "  NPM:      $(npm --version 2>/dev/null || echo 'NOT INSTALLED')"
+echo "  PM2:      $(pm2 --version 2>/dev/null || echo 'NOT INSTALLED')"
 echo "  Chromium: $(which chromium-browser 2>/dev/null || echo 'NOT INSTALLED')"
+echo "  Nginx:    $(nginx -v 2>&1 || echo 'NOT INSTALLED')"
 echo ""
 echo "Next steps:"
-echo "  1. Clone/upload your project"
-echo "  2. cd ~/library-chatbot"
-echo "  3. npm install"
-echo "  4. cp .env.example .env"
-echo "  5. nano .env  (edit semua credentials, termasuk PG_* dan SESSION_SECRET)"
-echo "  6. pm2 start ecosystem.config.js"
-echo "  7. pm2 logs"
+echo "  1. Clone project:"
+echo "       git clone https://github.com/hibasaputra25/library-chatbot.git"
+echo "       cd library-chatbot"
+echo ""
+echo "  2. Install Node modules (WAJIB pakai flag ini agar tidak download Chromium):"
+echo "       PUPPETEER_SKIP_DOWNLOAD=true npm install --omit=dev"
+echo ""
+echo "  3. Setup environment:"
+echo "       cp .env.example .env"
+echo "       nano .env"
+echo ""
+echo "  4. Setup Nginx:"
+echo "       sudo cp nginx.conf /etc/nginx/sites-available/chatbot"
+echo "       sudo ln -s /etc/nginx/sites-available/chatbot /etc/nginx/sites-enabled/"
+echo "       sudo rm -f /etc/nginx/sites-enabled/default"
+echo "       sudo nginx -t"
+echo "       sudo systemctl reload nginx"
+echo ""
+echo "  5. Start aplikasi:"
+echo "       pm2 start ecosystem.config.js"
+echo "       pm2 save"
+echo "       pm2 logs"
 echo ""
 echo "Pastikan .env sudah berisi:"
 echo "  - DB_HOST, DB_USER, DB_PASSWORD, DB_NAME  (MySQL kampus)"
 echo "  - PG_HOST, PG_PORT, PG_DATABASE, PG_USER, PG_PASSWORD  (PostgreSQL analytics)"
 echo "  - ADMIN_USER, ADMIN_PASS, ADMIN_NAMA, ADMIN_WA_NUMBER"
-echo "  - SESSION_SECRET  (string acak panjang)"
+echo "  - SESSION_SECRET  (generate: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\")"
 echo "  - GROQ_API_KEY, GEMINI_API_KEY"
 echo "  - WA_GATEWAY_URL=http://127.0.0.1:3002/send-direct"
 echo "  - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser"
+echo "  - NODE_ENV=production"
 echo ""
 echo "IMPORTANT: Always run PM2 commands with bash loaded:"
 echo "  export NVM_DIR=\"\$HOME/.nvm\""
