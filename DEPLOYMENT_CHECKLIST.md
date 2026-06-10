@@ -43,24 +43,13 @@ git push origin main
 
 #### Step 1: Upload Files ke Server
 
-**Option A: Via SCP (dari Windows)**
-```powershell
-# Upload semua file
-scp -r C:\chatbot\server_chatbot ubuntu@your-server-ip:~/apps/
-
-# Atau zip dulu untuk lebih cepat
-Compress-Archive -Path C:\chatbot\server_chatbot\* -DestinationPath chatbot.zip
-scp chatbot.zip ubuntu@your-server-ip:~/
-```
-
-**Option B: Via Git (Recommended)**
+**Via Git (Recommended)**
 ```bash
 # Di server Ubuntu
 ssh ubuntu@your-server-ip
-mkdir -p ~/apps
-cd ~/apps
-git clone https://github.com/your-username/server_chatbot.git
-cd server_chatbot
+cd ~
+git clone https://github.com/hibasaputra25/library-chatbot.git
+cd library-chatbot
 ```
 
 #### Step 2: Install Dependencies
@@ -69,20 +58,20 @@ cd server_chatbot
 # Login ke server
 ssh ubuntu@your-server-ip
 
-# Jalankan script instalasi
-cd ~/apps/server_chatbot
+# Masuk ke folder project
+cd ~/library-chatbot
 chmod +x install_ubuntu.sh
-./install_ubuntu.sh
+bash install_ubuntu.sh
 
 # Script akan install:
 # - Node.js via NVM
-# - MySQL Server
-# - Chromium & dependencies
-# - PM2
-# - Nginx
-# - Certbot (optional)
-# - Fail2Ban (optional)
+# - Chromium (untuk WhatsApp bot)
+# - Nginx (reverse proxy)
+# - PostgreSQL (opsional, jika lokal)
+# - PM2 (process manager)
 ```
+
+> **PENTING:** Jangan jalankan dengan `sh install_ubuntu.sh` — harus `bash install_ubuntu.sh`
 
 #### Step 3: Setup Database
 
@@ -115,10 +104,11 @@ psql -h <PG_HOST> -U <PG_USER> -d <PG_DATABASE> -c "SELECT NOW();"
 #### Step 4: Configure Application
 
 ```bash
-cd ~/apps/server_chatbot
+cd ~/library-chatbot
 
 # Install Node modules
-npm install --production
+# WAJIB pakai PUPPETEER_SKIP_DOWNLOAD=true agar tidak download Chromium (sudah ada di sistem)
+PUPPETEER_SKIP_DOWNLOAD=true npm install --omit=dev
 
 # Setup environment
 cp .env.example .env
@@ -190,11 +180,10 @@ curl http://localhost:3001/api/status
 # Copy nginx config
 sudo cp nginx.conf /etc/nginx/sites-available/chatbot
 
-# Edit domain name
-sudo nano /etc/nginx/sites-available/chatbot
-# Update: server_name your-domain.com www.your-domain.com;
+# Hapus default site nginx (PENTING - mencegah konflik 403)
+sudo rm -f /etc/nginx/sites-enabled/default
 
-# Enable site
+# Enable site chatbot
 sudo ln -s /etc/nginx/sites-available/chatbot /etc/nginx/sites-enabled/
 
 # Test configuration
@@ -203,9 +192,12 @@ sudo nginx -t
 # Reload Nginx
 sudo systemctl reload nginx
 
-# Test
-curl http://your-server-ip/health
+# Verifikasi bisa diakses
+curl -I http://localhost/login
+# Harus dapat HTTP/1.1 200 OK
 ```
+
+> **PENTING:** Jangan lupa hapus `default` site nginx (`sudo rm -f /etc/nginx/sites-enabled/default`). Jika tidak dihapus, semua request akan dapat 403 Forbidden karena default site menang atas config kita.
 
 #### Step 7: Setup SSL (Jika pakai domain)
 
@@ -293,6 +285,8 @@ curl https://your-domain.com/admin
 - [ ] System updated (`apt update && upgrade`)
 - [ ] Node.js installed & verified (`node --version`)
 - [ ] Chromium installed (`which chromium-browser`)
+- [ ] Nginx installed & running (`systemctl status nginx`)
+- [ ] Default nginx site dihapus (`sudo rm -f /etc/nginx/sites-enabled/default`)
 - [ ] PM2 installed globally (`pm2 --version`)
 - [ ] PostgreSQL installed atau remote PG server tersedia
 
@@ -306,8 +300,8 @@ curl https://your-domain.com/admin
 
 ### Application Configuration
 
-- [ ] Project uploaded/cloned to `~/apps/server_chatbot`
-- [ ] `npm install` completed without errors
+- [ ] Project cloned to `~/library-chatbot`
+- [ ] `PUPPETEER_SKIP_DOWNLOAD=true npm install --omit=dev` completed without errors
 - [ ] `.env` configured dengan values production
 - [ ] Semua variabel wajib diisi:
   - [ ] `DB_*` (MySQL kampus)
@@ -334,13 +328,14 @@ curl https://your-domain.com/admin
 ### Nginx Configuration
 
 - [ ] `nginx.conf` copied to `/etc/nginx/sites-available/chatbot`
-- [ ] Domain name updated in config
-- [ ] Symbolic link created to sites-enabled
-- [ ] Configuration tested (`nginx -t`)
-- [ ] Nginx reloaded successfully
-- [ ] Admin panel accessible via Nginx
-- [ ] API endpoints working
-- [ ] Rate limiting working
+- [ ] Default site dihapus: `sudo rm -f /etc/nginx/sites-enabled/default`
+- [ ] Symbolic link created: `sudo ln -s /etc/nginx/sites-available/chatbot /etc/nginx/sites-enabled/`
+- [ ] Configuration tested (`sudo nginx -t`) — harus OK, warnings boleh diabaikan
+- [ ] Nginx reloaded: `sudo systemctl reload nginx`
+- [ ] Login page accessible: `curl -I http://localhost/login` → HTTP 200
+- [ ] Admin panel accessible via browser
+- [ ] WebSocket koneksi WhatsApp berfungsi (`/admin/ws-gateway`)
+- [ ] WA gateway proxy berfungsi (`/wa-gateway/status` → JSON)
 
 ### SSL Certificate (if using domain)
 
@@ -458,7 +453,67 @@ sudo tail -f /var/log/nginx/chatbot-error.log
 
 ```bash
 pm2 logs chatbot-core --err --lines 50
-node core_server.js  # Run directly to see errors
+pm2 logs chatbot-gateway --err --lines 50
+
+# Jika restart count terus bertambah, jalankan langsung untuk lihat error:
+node core_server.js
+```
+
+### npm install Error (Puppeteer download failed)
+
+```bash
+# JANGAN pakai npm install biasa — Puppeteer akan coba download Chromium dan gagal
+# Selalu pakai:
+PUPPETEER_SKIP_DOWNLOAD=true npm install --omit=dev
+
+# Jika masih error karena cache corrupt:
+rm -rf ~/.cache/puppeteer
+PUPPETEER_SKIP_DOWNLOAD=true npm install --omit=dev
+```
+
+### Admin Panel 403 Forbidden
+
+```bash
+# Penyebab paling umum: default nginx site masih aktif
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo systemctl reload nginx
+curl -I http://localhost/login
+```
+
+### Admin Panel ERR_TOO_MANY_REDIRECTS
+
+```bash
+# Hapus cookie di browser atau buka Incognito window
+# Pastikan SESSION_SECRET sudah diset di .env
+```
+
+### WebSocket Gagal (Koneksi WhatsApp tidak muncul QR)
+
+```bash
+# Cek apakah wa_gateway berjalan
+pm2 status
+curl http://localhost:3002/status
+
+# Cek nginx proxy WebSocket
+curl -I http://localhost/wa-gateway/status
+# Harus dapat JSON, bukan HTML
+
+# Jika dapat HTML, pastikan nginx config sudah punya location /wa-gateway/
+# dan sudah di-reload
+```
+
+### PostgreSQL Authentication Failed
+
+```bash
+# Reset password user PostgreSQL
+sudo -u postgres psql -c "ALTER USER <pg_user> WITH ENCRYPTED PASSWORD '<password_baru>';"
+
+# Verifikasi koneksi
+psql -h localhost -U <pg_user> -d chatbot_analytics -c "SELECT NOW();"
+
+# Update .env dengan password baru
+nano .env
+pm2 restart chatbot-core
 ```
 
 ### Database Connection Error
