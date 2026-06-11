@@ -1006,6 +1006,10 @@ const createResponse = async (message, from, userName, finalNumber) => {
         // C. Alur MAHASISWA (Wajib ada di MySQL)
         if (userSession.state === "waiting_for_nim") {
             const inputNim = message.trim();
+            if (inputNim.toLowerCase() === 'batal') {
+                userSession.state = "waiting_for_role";
+                return { reply_message: "Proses dibatalkan. Silakan pilih peran:\n1. Mahasiswa\n2. Dosen/Tendik\n3. Tamu/Umum" };
+            }
             const cekDb = await dbService.getAnggotaByNim(inputNim);
 
             if (cekDb) {
@@ -1022,6 +1026,10 @@ const createResponse = async (message, from, userName, finalNumber) => {
         // D. Alur DOSEN/TENDIK (Cek MySQL, jika tidak ada -> PENDING)
         if (userSession.state === "waiting_for_nidn") {
             const inputNidn = message.trim();
+            if (inputNidn.toLowerCase() === 'batal') {
+                userSession.state = "waiting_for_role";
+                return { reply_message: "Proses dibatalkan. Silakan pilih peran:\n1. Mahasiswa\n2. Dosen/Tendik\n3. Tamu/Umum" };
+            }
             const cekDb = await dbService.getAnggotaByNim(inputNidn); 
 
             if (cekDb) {
@@ -1040,6 +1048,11 @@ const createResponse = async (message, from, userName, finalNumber) => {
         // D-2. Lanjutan Dosen Manual (PENDING)
         if (userSession.state === "waiting_for_dosen_manual_name") {
             const inputName = message.trim();
+            if (inputName.toLowerCase() === 'batal') {
+                userSession.state = "waiting_for_role";
+                delete userSession.temp_id;
+                return { reply_message: "Proses dibatalkan. Silakan pilih peran:\n1. Mahasiswa\n2. Dosen/Tendik\n3. Tamu/Umum" };
+            }
             await saveLinkedUser(finalNumber, userSession.temp_id, inputName, "dosen", "PENDING");
             userSession.state = "main_menu";
             delete userSession.temp_id;
@@ -1054,6 +1067,10 @@ const createResponse = async (message, from, userName, finalNumber) => {
         // E. Alur TAMU UMUM
         if (userSession.state === "waiting_for_guest_name") {
             const guestName = message.trim();
+            if (guestName.toLowerCase() === 'batal') {
+                userSession.state = "waiting_for_role";
+                return { reply_message: "Proses dibatalkan. Silakan pilih peran:\n1. Mahasiswa\n2. Dosen/Tendik\n3. Tamu/Umum" };
+            }
             const guestId = `GUEST_${finalNumber}`; 
             await saveLinkedUser(finalNumber, guestId, guestName, "tamu", "GUEST_ONLY");
             userSession.state = "main_menu";
