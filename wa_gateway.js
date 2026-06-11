@@ -156,6 +156,10 @@ async function initClient() {
         lastQrBase64 = null;
         isInitializing = false;
         broadcast({ type: 'status', status: 'disconnected', reason });
+        if (reason !== 'LOGOUT') {
+            console.log('[WA] Auto-reconnect dalam 5 detik...');
+            setTimeout(() => initClient(), 5000);
+        }
     });
 
     // EVENT PENERIMA PESAN
@@ -229,6 +233,8 @@ async function initClient() {
         waStatus = 'disconnected';
         isInitializing = false;
         broadcast({ type: 'status', status: 'disconnected', reason: err.message });
+        console.log('[WA] Retry inisialisasi dalam 15 detik...');
+        setTimeout(() => initClient(), 15000);
     }
 }
 
