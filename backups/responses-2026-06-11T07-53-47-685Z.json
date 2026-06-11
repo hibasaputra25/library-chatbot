@@ -11,7 +11,7 @@
     "ai_safety_warning": "Maaf, pesan Anda terlalu mirip dengan pertanyaan statis yang sudah ada. Silakan ketik *MENU* untuk layanan utama, atau coba pertanyaan yang lebih spesifik."
   },
   "system_commands": {
-    "menu": "Silakan pilih menu layanan di bawah ini:\n\n*LAYANAN PERPUSTAKAAN*\n- Ketik *1* Pencarian Koleksi.\n- Ketik *2* Untuk Cek Pinjaman Buku.\n- Ketik *3* Informasi Tata Tertib.\n- Ketik *4* Informasi Surat Keterangan Bebas Pustaka.\n- Ketik *5* Informasi Tugas Akhir.\n- Ketik *6* Koleksi Digital & Repositori.\n- Ketik *7* Ketentuan Uji Similarity (Turnitin) Tugas Akhir.\n- Ketik *8* Chat dengan Pustakawan.\n\nKetik *MENU* kapan saja untuk kembali ke sini."
+    "menu": "Silakan pilih menu layanan di bawah ini:\n\n*LAYANAN PERPUSTAKAAN*\n- Ketik *1* Pencarian Koleksi.\n- Ketik *2* Untuk Cek Pinjaman Buku.\n- Ketik *3* Informasi Tata Tertib.\n- Ketik *4* Informasi Surat Keterangan Bebas Pustaka.\n- Ketik *5* Informasi Tugas Akhir.\n- Ketik *6* Koleksi Digital & Repositori.\n- Ketik *7* Ketentuan Uji Similarity (Turnitin) Tugas Akhir.\n- Ketik *8* Chat dengan Pustakawan..\n\nKetik *MENU* kapan saja untuk kembali ke sini."
   },
   "general_services": {
     "1": "Baik, silakan pilih kriteria pencarian Anda:\n1. *JUDUL BUKU* (Ketik: *1*)\n2. *PENGARANG* (Ketik: *2*)\n\nKetik *MENU* untuk layanan lain.",
