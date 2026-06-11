@@ -916,15 +916,9 @@
             };
 
             waWs.onclose = () => {
-                waLog('Koneksi WebSocket terputus.', 'warn');
-                updateWaUI('disconnected');
-                // Auto reconnect setelah 5 detik
-                setTimeout(() => {
-                    if (document.getElementById('main-whatsapp') && !document.getElementById('main-whatsapp').classList.contains('hidden')) {
-                        waLog('Mencoba reconnect...');
-                        initWaConnection();
-                    }
-                }, 5000);
+                waLog('Koneksi WebSocket terputus, mencoba reconnect...', 'warn');
+                waWs = null;
+                setTimeout(() => initWaConnection(), 2000);
             };
         };
 

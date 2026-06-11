@@ -2179,38 +2179,46 @@ const server = http.createServer(app);
 const wssProxy = new WebSocketServer({ server, path: '/admin/ws-gateway' });
 
 wssProxy.on('connection', (clientWs, req) => {
-    // Cek sesi — hanya izinkan yang sudah login
-    // Karena WS tidak bawa cookie session otomatis di beberapa browser,
-    // kita izinkan koneksi tapi gateway sudah dilindungi di level nginx/LAN
     console.log('[WS PROXY] Admin panel terhubung ke proxy gateway.');
 
-    const gatewayWs = new WS('ws://127.0.0.1:3002/ws');
+    let gatewayWs = null;
+    let retryTimer = null;
+    let closed = false;
 
-    // Forward pesan dari gateway ke admin panel
-    gatewayWs.on('message', (data) => {
-        if (clientWs.readyState === WS.OPEN) {
-            clientWs.send(data.toString());
-        }
-    });
+    function connectToGateway() {
+        if (closed) return;
+        gatewayWs = new WS('ws://127.0.0.1:3002/ws');
 
-    gatewayWs.on('close', () => {
-        clientWs.close();
-    });
+        gatewayWs.on('message', (data) => {
+            if (clientWs.readyState === WS.OPEN) {
+                clientWs.send(data.toString());
+            }
+        });
 
-    gatewayWs.on('error', (err) => {
-        console.error('[WS PROXY] Gateway WS error:', err.message);
-        clientWs.close();
-    });
+        gatewayWs.on('close', () => {
+            if (closed) return;
+            console.log('[WS PROXY] Koneksi ke gateway terputus, retry dalam 2 detik...');
+            retryTimer = setTimeout(connectToGateway, 2000);
+        });
+
+        gatewayWs.on('error', (err) => {
+            console.error('[WS PROXY] Gateway WS error:', err.message);
+        });
+    }
+
+    connectToGateway();
 
     // Forward pesan dari admin panel ke gateway (misal: ping)
     clientWs.on('message', (data) => {
-        if (gatewayWs.readyState === WS.OPEN) {
+        if (gatewayWs && gatewayWs.readyState === WS.OPEN) {
             gatewayWs.send(data.toString());
         }
     });
 
     clientWs.on('close', () => {
-        gatewayWs.close();
+        closed = true;
+        if (retryTimer) clearTimeout(retryTimer);
+        if (gatewayWs) gatewayWs.close();
     });
 });
 
