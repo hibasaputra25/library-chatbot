@@ -471,7 +471,7 @@
     </div>
 
     <script>
-        const API_BASE_URL = "http://localhost:3001/admin/data";
+        const API_BASE_URL = "/admin/data";
         let currentResponsesData = {};
         let currentCategory = 'dashboard';
         let myChart = null; 
@@ -505,7 +505,7 @@
         // --- FETCH DATA DASHBOARD ---
         const loadDashboard = async () => {
             try {
-                const res = await fetch('http://localhost:3001/admin/stats/summary');
+                const res = await fetch('/admin/stats/summary');
                 if (!res.ok) throw new Error("Gagal load stats");
                 const data = await res.json();
 
@@ -625,7 +625,7 @@
                 const dateFrom = document.getElementById('filter-date-from').value;
                 const dateTo = document.getElementById('filter-date-to').value;
 
-                let url = 'http://localhost:3001/api/chat-history';
+                let url = '/api/chat-history';
                 const params = new URLSearchParams();
                 if (dateFrom) params.append('date_from', dateFrom);
                 if (dateTo) params.append('date_to', dateTo);
