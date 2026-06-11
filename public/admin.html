@@ -888,8 +888,8 @@
         };
 
         const initWaConnection = () => {
-            // Jika WS sudah aktif, tidak perlu buat ulang
-            if (waWs && waWs.readyState === WebSocket.OPEN) return;
+            // Jika WS sudah aktif atau sedang connecting, tidak perlu buat ulang
+            if (waWs && (waWs.readyState === WebSocket.OPEN || waWs.readyState === WebSocket.CONNECTING)) return;
 
             const wsUrl = `ws://${window.location.host}/admin/ws-gateway`;
             waLog(`Menghubungkan ke ${wsUrl}...`);
@@ -955,6 +955,9 @@
                 if (dot) dot.className = 'w-2 h-2 rounded-full bg-red-400';
                 if (txt) txt.textContent = 'Bot Offline';
             };
+            sidebarWs.onclose = () => {
+                setTimeout(() => initWsSidebar(), 5000);
+            };
         };
 
         // Reconnect button
@@ -966,6 +969,8 @@
                 if (res.ok) {
                     waLog('Reconnect dimulai. Menunggu QR...', 'info');
                     displayStatus('Proses reconnect dimulai. Pantau QR di halaman ini.');
+                    if (waWs) { waWs.close(); waWs = null; }
+                    setTimeout(() => initWaConnection(), 1000);
                 } else {
                     waLog('Gagal reconnect: ' + (data.error || 'Unknown error'), 'error');
                 }
