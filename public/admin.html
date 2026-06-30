@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -192,14 +192,14 @@
             </div>
 
             <div class="card p-6 mb-8">
-                <h3 class="text-lg font-semibold text-gray-700 mb-4">📈 Tren Aktivitas Chat (7 Hari Terakhir)</h3>
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">ðŸ“ˆ Tren Aktivitas Chat (7 Hari Terakhir)</h3>
                 <div class="relative h-64 w-full">
                     <canvas id="trafficChart"></canvas>
                 </div>
             </div>
 
             <div class="card p-6 mb-8">
-                <h3 class="text-lg font-semibold text-gray-700 mb-4">⏰ Jam Tersibuk (Peak Hours)</h3>
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">â° Jam Tersibuk (Peak Hours)</h3>
                 <div class="relative h-64 w-full">
                     <canvas id="peakHourChart"></canvas>
                 </div>
@@ -207,7 +207,7 @@
 
             <div class="card overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100">
-                    <h3 class="text-lg font-semibold text-gray-700">🏆 Top 20 Pemustaka Teraktif</h3>
+                    <h3 class="text-lg font-semibold text-gray-700">ðŸ† Top 20 Pemustaka Teraktif</h3>
                 </div>
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50/80">
@@ -477,6 +477,16 @@
         let myChart = null; 
         let trafficChart = null;
         let peakHourChart = null;
+
+        const escapeHtml = (str) => {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#x27;');
+        };
         let libraryChart = null;
         let editingUserId = null;
         let resetPwUserId = null;
@@ -548,10 +558,10 @@
                 } else {
                     data.top_users.forEach((user, index) => {
                         let badge = '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Aktif</span>';
-                        if (index === 0) badge = '<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">👑 Duta Baca</span>';
-                        const displayId = user.user_id.split('@')[0];
-                        const nama = user.nama || '<span class="text-gray-300 italic">-</span>';
-                        const identitas = user.identitas_id || '<span class="text-gray-300 italic">-</span>';
+                        if (index === 0) badge = '<span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">ðŸ‘‘ Duta Baca</span>';
+                        const displayId = escapeHtml(user.user_id.split('@')[0]);
+                        const nama = user.nama ? escapeHtml(user.nama) : '<span class="text-gray-300 italic">-</span>';
+                        const identitas = user.identitas_id ? escapeHtml(user.identitas_id) : '<span class="text-gray-300 italic">-</span>';
                         tbody.innerHTML += `<tr class="hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#${index + 1}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><a href="https://wa.me/${displayId}" target="_blank" class="text-blue-600 hover:text-blue-800 hover:underline">${displayId}</a></td>
@@ -647,18 +657,21 @@
 
                 tbody.innerHTML = '';
                 data.forEach(log => {
-                    const cleanNumber = log.user_id ? log.user_id.split('@')[0] : 'Unknown';
-                    const nama = log.nama || '<span class="text-gray-300 italic">-</span>';
-                    const identitas = log.identitas_id || '<span class="text-gray-300 italic">-</span>';
+                    const cleanNumber = escapeHtml(log.user_id ? log.user_id.split("@")[0] : "Unknown");
+                    const nama = log.nama ? escapeHtml(log.nama) : "<span class=\"text-gray-300 italic\">-</span>";
+                    const identitas = log.identitas_id ? escapeHtml(log.identitas_id) : "<span class=\"text-gray-300 italic\">-</span>";
+                    const msgIn = escapeHtml(log.message_in);
+                    const msgOut = escapeHtml(log.message_out);
+                    const ctx = escapeHtml(log.context || "General");
                     tbody.innerHTML += `
                         <tr class="hover:bg-gray-50 transition-colors">
-                            <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs">${new Date(log.timestamp).toLocaleString('id-ID')}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs">${new Date(log.timestamp).toLocaleString("id-ID")}</td>
                             <td class="px-6 py-4 whitespace-nowrap"><a href="https://wa.me/${cleanNumber}" target="_blank" class="text-blue-600 font-medium hover:underline">${cleanNumber}</a></td>
                             <td class="px-6 py-4 whitespace-nowrap text-gray-700 text-sm">${nama}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-gray-500 text-xs font-mono">${identitas}</td>
-                            <td class="px-6 py-4"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-[10px] font-bold uppercase">${log.context || 'General'}</span></td>
-                            <td class="px-6 py-4 text-gray-700 max-w-xs truncate" title="${log.message_in}">${log.message_in}</td>
-                            <td class="px-6 py-4 text-gray-500 italic max-w-xs truncate" title="${log.message_out}">${log.message_out || '-'}</td>
+                            <td class="px-6 py-4"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-[10px] font-bold uppercase">${ctx}</span></td>
+                            <td class="px-6 py-4 text-gray-700 max-w-xs truncate" title="${msgIn}">${msgIn}</td>
+                            <td class="px-6 py-4 text-gray-500 italic max-w-xs truncate" title="${msgOut}">${msgOut || "-"}</td>
                         </tr>
                     `;
                 });
@@ -672,13 +685,15 @@
         const createTableRow = (key, value, index) => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50';
+            const escapedKey = escapeHtml(key);
+            const escapedValue = escapeHtml(value.substring(0, 150));
             row.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${index + 1}</td>
-                <td class="px-6 py-4 text-sm font-medium text-gray-900 break-words max-w-xs">${key}</td>
-                <td class="px-6 py-4 text-sm text-gray-700 break-words max-w-2xl overflow-y-auto max-h-40">${value.substring(0, 150)}...</td>
+                <td class="px-6 py-4 text-sm font-medium text-gray-900 break-words max-w-xs">${escapedKey}</td>
+                <td class="px-6 py-4 text-sm text-gray-700 break-words max-w-2xl overflow-y-auto max-h-40">${escapedValue}...</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <button data-key="${key}" class="btn-edit bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-lg text-xs">Edit</button>
-                    <button data-key="${key}" class="btn-delete bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-lg text-xs">Hapus</button>
+                    <button data-key="${escapedKey}" class="btn-edit bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-lg text-xs">Edit</button>
+                    <button data-key="${escapedKey}" class="btn-delete bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-lg text-xs">Hapus</button>
                 </td>
             `;
             return row;
@@ -799,7 +814,8 @@
             if (!el) return;
             const colors = { info: 'text-gray-500', success: 'text-green-600', error: 'text-red-500', warn: 'text-orange-500' };
             const time = new Date().toLocaleTimeString('id-ID');
-            el.innerHTML += `<div class="${colors[type] || 'text-gray-500'}">[${time}] ${msg}</div>`;
+            const safeMsg = escapeHtml(msg);
+            el.innerHTML += `<div class="${colors[type] || 'text-gray-500'}">[${time}] ${safeMsg}</div>`;
             el.scrollTop = el.scrollHeight;
         };
 
@@ -1022,16 +1038,19 @@
                 tbody.innerHTML = '';
                 users.forEach(u => {
                     const lastLogin = u.last_login ? new Date(u.last_login).toLocaleString('id-ID') : '-';
+                    const uUsername = escapeHtml(u.username);
+                    const uNama = escapeHtml(u.nama);
+                    const uWa = escapeHtml(u.nomor_wa);
                     tbody.innerHTML += `
                         <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-4 font-medium text-gray-900">${u.username}</td>
-                            <td class="px-6 py-4 text-gray-700">${u.nama}</td>
-                            <td class="px-6 py-4 text-gray-500">${u.nomor_wa}</td>
+                            <td class="px-6 py-4 font-medium text-gray-900">${uUsername}</td>
+                            <td class="px-6 py-4 text-gray-700">${uNama}</td>
+                            <td class="px-6 py-4 text-gray-500">${uWa}</td>
                             <td class="px-6 py-4 text-gray-400 text-xs">${lastLogin}</td>
                             <td class="px-6 py-4 whitespace-nowrap space-x-2">
-                                <button data-id="${u.id}" data-username="${u.username}" data-nama="${u.nama}" data-wa="${u.nomor_wa}" class="btn-edit-user bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-lg text-xs">Edit</button>
-                                <button data-id="${u.id}" data-nama="${u.nama}" class="btn-reset-pw bg-orange-400 hover:bg-orange-500 text-white py-1 px-3 rounded-lg text-xs">Reset PW</button>
-                                <button data-id="${u.id}" data-nama="${u.nama}" class="btn-delete-user bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-lg text-xs">Hapus</button>
+                                <button data-id="${u.id}" data-username="${uUsername}" data-nama="${uNama}" data-wa="${uWa}" class="btn-edit-user bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded-lg text-xs">Edit</button>
+                                <button data-id="${u.id}" data-nama="${uNama}" class="btn-reset-pw bg-orange-400 hover:bg-orange-500 text-white py-1 px-3 rounded-lg text-xs">Reset PW</button>
+                                <button data-id="${u.id}" data-nama="${uNama}" class="btn-delete-user bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-lg text-xs">Hapus</button>
                             </td>
                         </tr>`;
                 });

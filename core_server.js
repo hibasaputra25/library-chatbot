@@ -145,6 +145,8 @@ const requireLogin = (req, res, next) => {
 // =======================================================
 
 // Halaman login
+app.get('/', (req, res) => res.redirect('/admin'));
+
 app.get('/login', (req, res) => {
     if (req.session && req.session.adminId) return res.redirect('/admin');
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
