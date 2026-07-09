@@ -8,7 +8,7 @@ const bodyParser = require('body-parser');
 const http = require('http');
 const { WebSocketServer, WebSocket } = require('ws');
 
-const CORE_SERVICE_URL = 'http://127.0.0.1:3001/process-message';
+const CORE_SERVICE_URL = 'http://127.0.0.1:3003/process-message';
 const GATEWAY_PORT = 3002;
 
 const app = express();

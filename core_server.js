@@ -1,6 +1,6 @@
 /**
  * CHATBOT CORE SERVICE
- * PORT: 3001
+ * PORT: 3003
  *
  * Layanan ini berisi logika inti Chatbot:
  * 1. Memuat responses.json.
@@ -41,7 +41,7 @@ const { db, run, get, all, getLinkedUser, saveLinkedUser } = require('./analytic
 const analyticsDb = require('./analytics_db');
 
 const app = express();
-const port = 3001;
+const port = process.env.PORT || 3003;
 
 // =======================================================
 // DB SQLITE: FUNGSI HUMAN MODE (CHAT PUSTAKAWAN)
