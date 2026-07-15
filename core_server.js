@@ -97,8 +97,8 @@ app.use(session({
     proxy: true,
     cookie: {
         httpOnly: true,
-        secure: 'auto',   // otomatis ikut protocol dari X-Forwarded-Proto
-        sameSite: 'lax',  // cukup lax untuk same-site reverse proxy
+        secure: false,    // false karena akses via HTTP (bukan HTTPS)
+        sameSite: 'lax',
         maxAge: 8 * 60 * 60 * 1000 // 8 jam
     }
 }));
