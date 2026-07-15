@@ -97,7 +97,7 @@ app.use(session({
     proxy: true,
     cookie: {
         httpOnly: true,
-        secure: false,    // false karena akses via HTTP (bukan HTTPS)
+        secure: true,     // true karena browser akses via HTTPS (SSL termination di reverse proxy)
         sameSite: 'lax',
         maxAge: 8 * 60 * 60 * 1000 // 8 jam
     }
