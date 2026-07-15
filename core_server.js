@@ -94,9 +94,11 @@ app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     cookie: {
         httpOnly: true,
-        secure: false, // set true jika pakai HTTPS
+        secure: 'auto',   // otomatis ikut protocol dari X-Forwarded-Proto
+        sameSite: 'lax',  // cukup lax untuk same-site reverse proxy
         maxAge: 8 * 60 * 60 * 1000 // 8 jam
     }
 }));
