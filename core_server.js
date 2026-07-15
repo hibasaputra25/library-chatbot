@@ -85,6 +85,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // SESSION & KEAMANAN ADMIN PANEL
 // =======================================================
 
+// Trust reverse proxy (agar session/cookie berfungsi di balik Nginx kampus)
+app.set('trust proxy', 1);
+
 const SESSION_SECRET = process.env.SESSION_SECRET || 'chatbot-perpus-secret-key-ganti-ini';
 
 app.use(session({
