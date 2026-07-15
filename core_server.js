@@ -88,6 +88,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Trust reverse proxy (agar session/cookie berfungsi di balik Nginx kampus)
 app.set('trust proxy', 1);
 
+// Middleware: konversi header Front-End-Https (dari reverse proxy kampus) ke X-Forwarded-Proto
+// Ini diperlukan agar Express trust proxy bisa mendeteksi HTTPS dan set Secure cookie
+app.use((req, res, next) => {
+    if (req.headers['front-end-https'] === 'on' && !req.headers['x-forwarded-proto']) {
+        req.headers['x-forwarded-proto'] = 'https';
+    }
+    next();
+});
+
 const SESSION_SECRET = process.env.SESSION_SECRET || 'chatbot-perpus-secret-key-ganti-ini';
 
 app.use(session({
@@ -97,7 +106,7 @@ app.use(session({
     proxy: true,
     cookie: {
         httpOnly: true,
-        secure: false,    // false: koneksi internal HTTP, SSL termination di proxy kampus
+        secure: 'auto',   // auto: Secure flag ikut protocol yang terdeteksi (HTTPS via proxy)
         sameSite: 'lax',
         maxAge: 8 * 60 * 60 * 1000 // 8 jam
     }
