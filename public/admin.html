@@ -907,7 +907,8 @@
             // Jika WS sudah aktif atau sedang connecting, tidak perlu buat ulang
             if (waWs && (waWs.readyState === WebSocket.OPEN || waWs.readyState === WebSocket.CONNECTING)) return;
 
-            const wsUrl = `ws://${window.location.host}/admin/ws-gateway`;
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/admin/ws-gateway`;
             waLog(`Menghubungkan ke ${wsUrl}...`);
             waWs = new WebSocket(wsUrl);
 
@@ -940,7 +941,8 @@
 
         // Inisialisasi WS untuk sidebar status saat halaman load
         const initWsSidebar = () => {
-            const wsUrl = `ws://${window.location.host}/admin/ws-gateway`;
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/admin/ws-gateway`;
             const sidebarWs = new WebSocket(wsUrl);
             sidebarWs.onmessage = (event) => {
                 try {
