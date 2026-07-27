@@ -871,13 +871,7 @@ async function handleMemberCheck(nim, userSession) {
 
     if (!data) {
         return { 
-            reply_message: `⚠️ Data anggota dengan NIM/ID *${nim}* tidak ditemukan di sistem perpustakaan.\n\n` +
-                `Kemungkinan penyebab:\n` +
-                `• NIM/ID yang dimasukkan salah\n` +
-                `• Data belum terdaftar di sistem perpustakaan\n\n` +
-                `Jika Anda tidak memiliki NIM/ID terdaftar, Anda bisa mengakses layanan sebagai *Tamu*.\n` +
-                `Ketik *TAMU* untuk melanjutkan sebagai tamu, atau ketik *MENU* untuk kembali.`,
-            suggest_guest: true
+            reply_message: `⚠️ Data anggota dengan NIM/ID *${nim}* tidak ditemukan di sistem perpustakaan.\n\nSilakan periksa kembali dan ketik ulang, atau ketik *MENU* untuk kembali.`
         };
     }
 
