@@ -585,6 +585,19 @@
             // Header kolom
             const headers = ['Waktu', 'Nomor WA', 'Nama', 'NIM/ID', 'Konteks', 'Pesan Masuk', 'Balasan Bot'];
 
+            // Bersihkan teks balasan bot dari formatting WhatsApp
+            const cleanBotReply = (val) => {
+                if (val === null || val === undefined) return '';
+                return String(val)
+                    .replace(/\*(.*?)\*/g, '$1')       // hapus *bold*
+                    .replace(/_(.*?)_/g, '$1')          // hapus _italic_
+                    .replace(/~(.*?)~/g, '$1')          // hapus ~strikethrough~
+                    .replace(/```(.*?)```/gs, '$1')     // hapus ```code```
+                    .replace(/\r?\n/g, ' ')             // ganti newline dengan spasi
+                    .replace(/\s{2,}/g, ' ')            // hapus spasi berlebih
+                    .trim();
+            };
+
             // Ambil data dari chatHistoryData (cache)
             const csvRows = [headers.join(',')];
             chatHistoryData.forEach(log => {
@@ -601,7 +614,7 @@
                     escape(log.identitas_id),
                     escape(log.context),
                     escape(log.message_in),
-                    escape(log.message_out)
+                    escape(cleanBotReply(log.message_out))
                 ];
                 csvRows.push(row.join(','));
             });
