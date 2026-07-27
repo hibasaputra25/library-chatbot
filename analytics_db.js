@@ -90,8 +90,13 @@ async function initTable() {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_status (
                 phone_number TEXT PRIMARY KEY,
-                mode         TEXT DEFAULT 'bot'
+                mode         TEXT DEFAULT 'bot',
+                updated_at   TIMESTAMPTZ DEFAULT NOW()
             )
+        `);
+        // Tambah kolom updated_at jika tabel sudah ada tapi kolom belum ada (migrasi)
+        await pool.query(`
+            ALTER TABLE user_status ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()
         `);
         console.log('[PG] Tabel user_status siap.');
 

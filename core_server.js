@@ -52,12 +52,42 @@ const port = process.env.PORT || 3003;
 // 2. Fungsi untuk mengambil status user
 async function getUserMode(phoneNumber) {
     try {
-        const row = await analyticsDb.get(`SELECT mode FROM user_status WHERE phone_number = ?`, [phoneNumber]);
-        return row ? row.mode : 'bot';
+        const row = await analyticsDb.get(`SELECT mode, updated_at FROM user_status WHERE phone_number = ?`, [phoneNumber]);
+        if (!row) return 'bot';
+
+        // Cek timeout human mode — default 2 jam, bisa diubah via .env
+        if (row.mode === 'human' && row.updated_at) {
+            const timeoutHours = parseFloat(process.env.HUMAN_MODE_TIMEOUT_HOURS || '2');
+            const timeoutMs = timeoutHours * 60 * 60 * 1000;
+            const elapsed = Date.now() - new Date(row.updated_at).getTime();
+            if (elapsed > timeoutMs) {
+                // Timeout — reset ke bot secara otomatis
+                await setUserMode(phoneNumber, 'bot');
+                console.log(`[HUMAN MODE] Timeout untuk ${phoneNumber} setelah ${timeoutHours} jam. Mode direset ke bot.`);
+                return 'bot';
+            }
+        }
+
+        return row.mode;
     } catch (err) {
         console.error("Error getUserMode:", err.message);
         return 'bot';
     }
+}
+
+// 3. Fungsi untuk mengubah status user
+async function setUserMode(phoneNumber, mode) {
+    try {
+        // INSERT ... ON CONFLICT DO UPDATE (PostgreSQL, setara REPLACE INTO di SQLite)
+        await analyticsDb.run(`
+            INSERT INTO user_status (phone_number, mode, updated_at)
+            VALUES (?, ?, NOW())
+            ON CONFLICT (phone_number) DO UPDATE SET mode = EXCLUDED.mode, updated_at = NOW()
+        `, [phoneNumber, mode]);
+    } catch (err) {
+        console.error("Error setUserMode:", err.message);
+    }
+}
 }
 
 // 3. Fungsi untuk mengubah status user
