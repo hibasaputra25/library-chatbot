@@ -9,10 +9,10 @@ const pool = new Pool({
     database: process.env.PG_DATABASE || 'chatbot_analytics',
     user:     process.env.PG_USER     || 'postgres',
     password: process.env.PG_PASSWORD || '',
-    // Maksimal 10 koneksi aktif sekaligus
-    max: 10,
+    // Maksimal 25 koneksi aktif sekaligus (cukup untuk ~100 user bersamaan)
+    max: 25,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 8000,
 });
 
 pool.on('connect', () => {
