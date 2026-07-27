@@ -1928,6 +1928,8 @@ app.post("/process-message", async (req, res) => {
         // A. Perintah Admin untuk mengakhiri sesi obrolan manual
         // Format: "!bot <nomor_mahasiswa>" — admin mengakhiri sesi dari sisi admin
         // Format: "!bot" — user mengakhiri sesi dari sisi mahasiswa
+        // CATATAN: handler ini dicek SEBELUM blok human mode agar admin bisa
+        // mengirim !bot meski nomor admin sendiri sedang dalam mode human
         if (cleanText.startsWith('!bot')) {
             const parts = text.trim().split(/\s+/);
             const targetNumber = parts[1] ? parts[1].trim() : null;
@@ -1936,10 +1938,12 @@ app.post("/process-message", async (req, res) => {
                 // Admin kirim "!bot 628xxx" — reset mode mahasiswa yang dituju
                 const targetFrom = targetNumber.includes('@c.us') ? targetNumber : `${targetNumber}@c.us`;
                 await setUserMode(targetFrom, 'bot');
+                stopActiveHumanTimer(targetFrom); // hentikan timer di memory
                 return res.json({ reply: `*Sistem:* Sesi obrolan manual dengan *${targetNumber}* telah diakhiri. Chatbot mahasiswa tersebut aktif kembali.` });
             } else {
                 // Mahasiswa kirim "!bot" — reset mode diri sendiri
                 await setUserMode(from, 'bot');
+                stopActiveHumanTimer(from); // hentikan timer di memory
                 return res.json({ reply: "*Sistem:* Mode Pustakawan diakhiri. Chatbot aktif kembali.\n\nKetik *Menu* untuk melihat layanan." });
             }
         }
