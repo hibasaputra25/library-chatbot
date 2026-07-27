@@ -870,7 +870,15 @@ async function handleMemberCheck(nim, userSession) {
     const data = await dbService.cekStatusAnggota(nim);
 
     if (!data) {
-        return { reply_message: `⚠️ Data anggota dengan NIM *${nim}* tidak ditemukan di sistem perpustakaan.` };
+        return { 
+            reply_message: `⚠️ Data anggota dengan NIM/ID *${nim}* tidak ditemukan di sistem perpustakaan.\n\n` +
+                `Kemungkinan penyebab:\n` +
+                `• NIM/ID yang dimasukkan salah\n` +
+                `• Data belum terdaftar di sistem perpustakaan\n\n` +
+                `Jika Anda tidak memiliki NIM/ID terdaftar, Anda bisa mengakses layanan sebagai *Tamu*.\n` +
+                `Ketik *TAMU* untuk melanjutkan sebagai tamu, atau ketik *MENU* untuk kembali.`,
+            suggest_guest: true
+        };
     }
 
     // Format Pesan Balasan
@@ -1482,6 +1490,22 @@ Kata kunci: _"${keyword}"_
                 return { reply_message: responsesData.system_commands.menu };
             }
 
+            // Saran masuk sebagai tamu jika user ketik TAMU
+            if (nim.toLowerCase() === 'tamu') {
+                resetSessionState(from);
+                return { 
+                    reply_message: `Baik, Anda akan melanjutkan sebagai *Tamu*.\n\n` +
+                        `Sebagai tamu, fitur cek pinjaman tidak tersedia karena memerlukan data keanggotaan perpustakaan.\n\n` +
+                        `Layanan yang tersedia untuk tamu:\n` +
+                        `• Pencarian buku\n` +
+                        `• Informasi tata tertib\n` +
+                        `• Informasi tugas akhir\n` +
+                        `• Koleksi digital\n` +
+                        `• Chat dengan pustakawan\n\n` +
+                        `Ketik *MENU* untuk melihat layanan.`
+                };
+            }
+
             console.log(`[MEMBER] Cek NIM: ${nim}`);
             const result = await handleMemberCheck(nim, userSession);
             
@@ -1542,11 +1566,26 @@ Kata kunci: _"${keyword}"_
     
     // Menu 2: Cek Status & Peminjaman (Bisa ketik "a", "A", atau "cek status")
     if (normalizedMessage === "2" || normalizedMessage.includes("pinjaman")) {
-        
-        // 1. Ubah State agar pesan berikutnya dianggap NIM
-        userSession.state = "waiting_for_nim"; 
-        
-        // 2. Berikan balasan minta NIM
+
+        // Cek status verifikasi user
+        if (linkedUser && linkedUser.status_verifikasi === 'VERIFIED') {
+            // Langsung cek pinjaman tanpa perlu input NIM lagi
+            const result = await handleMemberCheck(linkedUser.identitas_id, userSession);
+            if (result.success) resetSessionState(from);
+            return { reply_message: result.reply_message };
+        }
+
+        // PENDING (dosen belum terverifikasi) atau GUEST_ONLY (tamu)
+        if (linkedUser && (linkedUser.status_verifikasi === 'PENDING' || linkedUser.status_verifikasi === 'GUEST_ONLY')) {
+            userSession.state = "waiting_for_nim";
+            const label = linkedUser.status_verifikasi === 'PENDING' ? 'NIDN/NIP/NIK' : 'NIM/ID Anggota';
+            return {
+                reply_message: `🔍 *Cek Status Pinjaman*\n\nSilakan masukkan *${label}* Anda untuk melanjutkan.\n\n_Ketik *MENU* untuk kembali._`
+            };
+        }
+
+        // Fallback: minta NIM (seharusnya tidak terjadi jika linkedUser selalu ada)
+        userSession.state = "waiting_for_nim";
         return { 
             reply_message: responsesData.general_services["2"] 
         };
@@ -1570,7 +1609,20 @@ Kata kunci: _"${keyword}"_
     const MENU_KEYWORDS = {
         'menu'           : () => { userSession.state = 'main_menu'; return { reply_message: [responsesData.system_commands.menu] }; },
         'cari buku'      : () => { userSession.state = 'waiting_for_book_id'; return { reply_message: responsesData.flow_messages.prompt_search_universal }; },
-        'pinjaman'       : () => { userSession.state = 'waiting_for_nim'; return { reply_message: responsesData.general_services['2'] }; },
+        'pinjaman'       : async () => {
+            if (linkedUser && linkedUser.status_verifikasi === 'VERIFIED') {
+                const result = await handleMemberCheck(linkedUser.identitas_id, userSession);
+                if (result.success) resetSessionState(from);
+                return { reply_message: result.reply_message };
+            }
+            if (linkedUser && (linkedUser.status_verifikasi === 'PENDING' || linkedUser.status_verifikasi === 'GUEST_ONLY')) {
+                userSession.state = 'waiting_for_nim';
+                const label = linkedUser.status_verifikasi === 'PENDING' ? 'NIDN/NIP/NIK' : 'NIM/ID Anggota';
+                return { reply_message: `🔍 *Cek Status Pinjaman*\n\nSilakan masukkan *${label}* Anda untuk melanjutkan.\n\n_Ketik *MENU* untuk kembali._` };
+            }
+            userSession.state = 'waiting_for_nim';
+            return { reply_message: responsesData.general_services['2'] };
+        },
         'tata tertib'    : () => ({ reply_message: responsesData.general_services['3'] }),
         'skbp'           : () => ({ reply_message: responsesData.general_services['4'] }),
         'tugas akhir'    : () => ({ reply_message: responsesData.general_services['5'] }),
