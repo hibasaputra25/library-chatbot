@@ -2244,6 +2244,47 @@ app.post("/api/admin-sync", async (req, res) => { // Tambahkan async
     res.status(200).json({ status: "ok" });
 });
 
+// Endpoint untuk mengakhiri human mode dari admin panel
+app.post("/api/end-human-mode", requireLogin, async (req, res) => {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber wajib diisi.' });
+
+    try {
+        const targetFrom = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`;
+        await setUserMode(targetFrom, 'bot');
+        stopActiveHumanTimer(targetFrom);
+
+        // Kirim notif ke user bahwa sesi telah diakhiri
+        try {
+            await axios.post(WA_GATEWAY_URL, {
+                to: targetFrom,
+                message: "✅ *Sesi Obrolan Selesai*\n\nPustakawan telah mengakhiri sesi obrolan manual.\n\nKetik *Menu* untuk kembali menggunakan layanan bot."
+            });
+        } catch (err) {
+            console.error("[END SESSION] Gagal kirim notif ke user:", err.message);
+        }
+
+        console.log(`[END SESSION] Sesi human mode untuk ${phoneNumber} diakhiri oleh admin panel.`);
+        res.json({ success: true, message: `Sesi untuk ${phoneNumber} berhasil diakhiri.` });
+    } catch (err) {
+        console.error("Gagal mengakhiri human mode:", err.message);
+        res.status(500).json({ error: 'Gagal mengakhiri sesi.' });
+    }
+});
+
+// Endpoint untuk mengambil daftar user yang sedang dalam human mode
+app.get("/api/active-human-sessions", requireLogin, async (req, res) => {
+    try {
+        const rows = await analyticsDb.all(
+            `SELECT phone_number, updated_at FROM user_status WHERE mode = 'human' ORDER BY updated_at DESC`
+        );
+        res.json(rows);
+    } catch (err) {
+        console.error("Gagal ambil active sessions:", err.message);
+        res.status(500).json({ error: 'Gagal mengambil data.' });
+    }
+});
+
 app.get("/api/chat-history", requireLogin, async (req, res) => {
     try {
         const { date_from, date_to } = req.query;
