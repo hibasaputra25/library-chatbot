@@ -20,6 +20,7 @@ const fs = require("fs");
 const util = require("util"); 
 const axios = require('axios');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const bcrypt = require('bcryptjs');
 const path = require('path');
 
@@ -100,6 +101,11 @@ app.use((req, res, next) => {
 const SESSION_SECRET = process.env.SESSION_SECRET || 'chatbot-perpus-secret-key-ganti-ini';
 
 app.use(session({
+    store: new pgSession({
+        pool: analyticsDb.pool,
+        tableName: 'session',
+        createTableIfMissing: true
+    }),
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
