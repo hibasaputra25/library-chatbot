@@ -73,21 +73,6 @@ async function setUserMode(phoneNumber, mode) {
         console.error("Error setUserMode:", err.message);
     }
 }
-}
-
-// 3. Fungsi untuk mengubah status user
-async function setUserMode(phoneNumber, mode) {
-    try {
-        // INSERT ... ON CONFLICT DO UPDATE (PostgreSQL, setara REPLACE INTO SQLite)
-        await analyticsDb.run(`
-            INSERT INTO user_status (phone_number, mode)
-            VALUES (?, ?)
-            ON CONFLICT (phone_number) DO UPDATE SET mode = EXCLUDED.mode
-        `, [phoneNumber, mode]);
-    } catch (err) {
-        console.error("Error setUserMode:", err.message);
-    }
-}
 // =======================================================
 
 // Izinkan pesan JSON hingga 1MB (default cuma 100kb)
