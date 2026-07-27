@@ -1996,12 +1996,14 @@ app.post("/process-message", async (req, res) => {
                 // Kirim notifikasi "Alert" ke HP Admin Meruya
                 try {
                     const userNumberOnly = from.replace('@c.us', '');
+                    const botNumber = ADMIN_NUMBER.replace('@c.us', '');
+                    const endSessionLink = `https://wa.me/${botNumber}?text=!bot%20${finalNumber}`;
                     const alertMsg = `🚨 *ALERT PUSTAKAWAN*\n\n` +
                                     `Mahasiswa bernama *${userName}* meminta obrolan manual.\n` +
-                                    `Nomor WA: wa.me/${finalNumber}\n\n` +
+                                    `Nomor WA: https://wa.me/${finalNumber}\n\n` +
                                     `_Balas pesan mahasiswa tersebut secara manual melalui WA Anda._\n\n` +
-                                    `Jika masalah sudah selesai, kirim perintah berikut ke bot ini:\n` +
-                                    `*!bot ${finalNumber}*`;
+                                    `Jika masalah sudah selesai, klik tautan berikut untuk mengakhiri sesi:\n` +
+                                    `${endSessionLink}`;
 
                     await axios.post(WA_GATEWAY_URL, {
                         to: ADMIN_NUMBER,
