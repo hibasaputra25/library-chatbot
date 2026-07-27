@@ -52,23 +52,8 @@ const port = process.env.PORT || 3003;
 // 2. Fungsi untuk mengambil status user
 async function getUserMode(phoneNumber) {
     try {
-        const row = await analyticsDb.get(`SELECT mode, updated_at FROM user_status WHERE phone_number = ?`, [phoneNumber]);
-        if (!row) return 'bot';
-
-        // Cek timeout human mode — default 2 jam, bisa diubah via .env
-        if (row.mode === 'human' && row.updated_at) {
-            const timeoutHours = parseFloat(process.env.HUMAN_MODE_TIMEOUT_HOURS || '2');
-            const timeoutMs = timeoutHours * 60 * 60 * 1000;
-            const elapsed = Date.now() - new Date(row.updated_at).getTime();
-            if (elapsed > timeoutMs) {
-                // Timeout — reset ke bot secara otomatis
-                await setUserMode(phoneNumber, 'bot');
-                console.log(`[HUMAN MODE] Timeout untuk ${phoneNumber} setelah ${timeoutHours} jam. Mode direset ke bot.`);
-                return 'bot';
-            }
-        }
-
-        return row.mode;
+        const row = await analyticsDb.get(`SELECT mode FROM user_status WHERE phone_number = ?`, [phoneNumber]);
+        return row ? row.mode : 'bot';
     } catch (err) {
         console.error("Error getUserMode:", err.message);
         return 'bot';
@@ -434,7 +419,7 @@ const RESPONSES_FILE_PATH = "./responses.json";
 // VARIABEL GLOBAL UNTUK ACTIVE TIMER HUMAN MODE
 // =========================================================
 const humanModeTimers = {};
-const HUMAN_MODE_TIMEOUT = 5 * 60 * 1000; // 10 Detik untuk testing (Ubah ke 5 * 60 * 1000 nanti)
+const HUMAN_MODE_TIMEOUT = parseFloat(process.env.HUMAN_MODE_TIMEOUT_HOURS || '2') * 60 * 60 * 1000;
 
 // Fungsi untuk memulai atau mereset timer aktif
 function startActiveHumanTimer(fromWaId) {
