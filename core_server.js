@@ -2063,7 +2063,23 @@ app.post("/process-message", async (req, res) => {
 
     } catch (error) {
         console.error("Error processing message:", error);
-        res.status(500).send("Internal Server Error");
+
+        // Deteksi jenis error untuk pesan yang lebih spesifik
+        const isDbTimeout = error.message && (
+            error.message.includes('timeout') ||
+            error.message.includes('Too many connections') ||
+            error.message.includes('ECONNREFUSED') ||
+            error.message.includes('queue')
+        );
+
+        const fallbackMessage = isDbTimeout
+            ? "⚠️ Sistem sedang sibuk melayani banyak permintaan. Mohon tunggu sebentar dan coba lagi dalam beberapa detik."
+            : "⚠️ Maaf, terjadi gangguan sementara pada sistem. Silakan coba lagi dalam beberapa saat.\n\nJika masalah berlanjut, ketik *8* untuk menghubungi pustakawan.";
+
+        // Kirim JSON agar gateway bisa meneruskan pesan ke user
+        if (!res.headersSent) {
+            res.json({ reply: fallbackMessage });
+        }
     }
 });
 
