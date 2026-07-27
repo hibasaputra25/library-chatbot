@@ -305,7 +305,8 @@ const NON_FATAL_ERRORS = [
     'Target closed',
     'EBUSY',
     'Session closed',
-    'lockfile'
+    'lockfile',
+    'already exists!'  // onQRChangedEvent binding duplikat saat reconnect
 ];
 
 const isNonFatal = (msg) => NON_FATAL_ERRORS.some(e => msg.includes(e));
