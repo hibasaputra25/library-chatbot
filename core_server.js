@@ -1926,9 +1926,22 @@ app.post("/process-message", async (req, res) => {
         const currentMode = await getUserMode(from);
 
         // A. Perintah Admin untuk mengakhiri sesi obrolan manual
-        if (cleanText === '!bot') {
-            await setUserMode(from, 'bot');
-            return res.json({ reply: "*Sistem:* Mode Pustakawan diakhiri. Chatbot aktif kembali.\n\nKetik *Menu* untuk melihat layanan." });
+        // Format: "!bot <nomor_mahasiswa>" — admin mengakhiri sesi dari sisi admin
+        // Format: "!bot" — user mengakhiri sesi dari sisi mahasiswa
+        if (cleanText.startsWith('!bot')) {
+            const parts = text.trim().split(/\s+/);
+            const targetNumber = parts[1] ? parts[1].trim() : null;
+
+            if (targetNumber) {
+                // Admin kirim "!bot 628xxx" — reset mode mahasiswa yang dituju
+                const targetFrom = targetNumber.includes('@c.us') ? targetNumber : `${targetNumber}@c.us`;
+                await setUserMode(targetFrom, 'bot');
+                return res.json({ reply: `*Sistem:* Sesi obrolan manual dengan *${targetNumber}* telah diakhiri. Chatbot mahasiswa tersebut aktif kembali.` });
+            } else {
+                // Mahasiswa kirim "!bot" — reset mode diri sendiri
+                await setUserMode(from, 'bot');
+                return res.json({ reply: "*Sistem:* Mode Pustakawan diakhiri. Chatbot aktif kembali.\n\nKetik *Menu* untuk melihat layanan." });
+            }
         }
 
         // B. Jika user SEDANG dalam mode Human, Bot DIAM (cegat pesan disini)
@@ -1986,7 +1999,9 @@ app.post("/process-message", async (req, res) => {
                     const alertMsg = `🚨 *ALERT PUSTAKAWAN*\n\n` +
                                     `Mahasiswa bernama *${userName}* meminta obrolan manual.\n` +
                                     `Nomor WA: wa.me/${finalNumber}\n\n` +
-                                    `_Balas pesan beliau manual. Jika masalah sudah selesai, ketik *!bot* di chat mahasiswa tersebut._`;
+                                    `_Balas pesan mahasiswa tersebut secara manual melalui WA Anda._\n\n` +
+                                    `Jika masalah sudah selesai, kirim perintah berikut ke bot ini:\n` +
+                                    `*!bot ${finalNumber}*`;
 
                     await axios.post(WA_GATEWAY_URL, {
                         to: ADMIN_NUMBER,
