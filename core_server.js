@@ -1029,6 +1029,10 @@ const createResponse = async (message, from, userName, finalNumber) => {
                 userSession.state = "waiting_for_role";
                 return { reply_message: "Proses dibatalkan. Silakan pilih peran:\n1. Mahasiswa\n2. Dosen/Tendik\n3. Tamu/Umum" };
             }
+            if (inputNim === '3') {
+                userSession.state = "waiting_for_guest_name";
+                return { reply_message: "Baik, Anda akan melanjutkan sebagai *Tamu*.\n\nSilakan ketik *Nama Lengkap* Anda:" };
+            }
             const cekDb = await dbService.getAnggotaByNim(inputNim);
 
             if (cekDb) {
@@ -1071,6 +1075,11 @@ const createResponse = async (message, from, userName, finalNumber) => {
                 userSession.state = "waiting_for_role";
                 delete userSession.temp_id;
                 return { reply_message: "Proses dibatalkan. Silakan pilih peran:\n1. Mahasiswa\n2. Dosen/Tendik\n3. Tamu/Umum" };
+            }
+            if (inputName === '3') {
+                delete userSession.temp_id;
+                userSession.state = "waiting_for_guest_name";
+                return { reply_message: "Baik, Anda akan melanjutkan sebagai *Tamu*.\n\nSilakan ketik *Nama Lengkap* Anda:" };
             }
             await saveLinkedUser(finalNumber, userSession.temp_id, inputName, "dosen", "PENDING");
             userSession.state = "main_menu";
