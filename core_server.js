@@ -994,7 +994,10 @@ const createResponse = async (message, from, userName, finalNumber) => {
     // =========================================================
     // 3. GERBANG PENDAFTARAN (OPTIMISTIC ONBOARDING)
     // =========================================================
-    const linkedUser = await getLinkedUser(finalNumber);
+    // Skip query DB jika user sedang dalam proses onboarding (pasti belum terdaftar)
+    const onboardingStates = ['waiting_for_role', 'waiting_for_nim', 'waiting_for_nidn', 'waiting_for_guest_name', 'waiting_for_dosen_manual_name', 'waiting_for_confirmation'];
+    const isOnboarding = onboardingStates.includes(userSession.state);
+    const linkedUser = isOnboarding ? null : await getLinkedUser(finalNumber);
 
     let rawName = userName;
     if (rawName && rawName.startsWith('+')) rawName = "Pemustaka";
