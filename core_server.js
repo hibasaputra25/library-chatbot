@@ -1044,7 +1044,7 @@ const createResponse = async (message, from, userName, finalNumber) => {
                 userSession.state = "waiting_for_confirmation";
                 return { reply_message: `Ditemukan data mahasiswa:\n\n*Nama:* ${cekDb.Nama}\n*NIM:* ${cekDb.No_Anggota}\n\nApakah data ini benar? Ketik *YA* atau *TIDAK*.` };
             } else {
-                return { reply_message: `⚠️ Maaf, NIM *${inputNim}* tidak ditemukan di database.\n\nSilakan periksa kembali dan ketik ulang NIM Anda. (Atau ketik *BATAL* untuk kembali ke pilihan peran)` };
+                return { reply_message: `⚠️ Maaf, NIM *${inputNim}* tidak ditemukan di database.\n\nKemungkinan penyebab:\n• NIM yang dimasukkan salah\n• Data belum terdaftar di sistem perpustakaan\n\nSilakan ketik ulang NIM Anda, ketik *BATAL* untuk kembali ke pilihan peran, atau ketik *3* untuk melanjutkan sebagai *Tamu*.` };
             }
         }
 
