@@ -1060,7 +1060,7 @@ const createResponse = async (message, from, userName, finalNumber) => {
             } else {
                 userSession.temp_id = inputNidn;
                 userSession.state = "waiting_for_dosen_manual_name";
-                return { reply_message: `Data NIDN/NIP *${inputNidn}* belum tersinkronisasi di database utama kami.\n\nNamun Anda tetap bisa melanjutkan. Silakan ketik *Nama Lengkap* Anda:` };
+                return { reply_message: `ℹ️ NIDN/NIP/NIK *${inputNidn}* tidak ditemukan di database perpustakaan.\n\nJika Anda yakin data Anda sudah terdaftar, kemungkinan belum tersinkronisasi. Anda tetap bisa mendaftar secara manual dan akun Anda akan ditinjau oleh admin.\n\nPilihan Anda:\n• Ketik *Nama Lengkap* Anda untuk mendaftar manual (status: menunggu verifikasi admin)\n• Ketik *BATAL* untuk kembali ke pilihan peran\n• Ketik *3* untuk melanjutkan sebagai *Tamu* tanpa verifikasi` };
             }
         }
 
