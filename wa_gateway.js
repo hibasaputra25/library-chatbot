@@ -92,8 +92,7 @@ async function initClient() {
     client = new Client({
         authStrategy: new LocalAuth(),
         webVersionCache: {
-            type: 'remote',
-            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1041063798-alpha.html'
+            type: 'local'
         },
         puppeteer: {
             headless: true,
