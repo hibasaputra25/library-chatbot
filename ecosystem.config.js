@@ -100,7 +100,7 @@ module.exports = {
       
       // Advanced options
       min_uptime: '30s',  // WhatsApp init takes longer
-      max_restarts: 5,  // Less aggressive restart for WhatsApp
+      max_restarts: 15,  // Naikkan batas restart agar tidak berhenti saat error berulang
       restart_delay: 10000,  // 10s delay between restarts
       
       // Source map support

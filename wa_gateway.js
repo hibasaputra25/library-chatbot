@@ -331,6 +331,37 @@ process.on('uncaughtException', (err) => {
 });
 
 // =======================================================
+// HEALTH CHECK — deteksi koneksi stuck tanpa event disconnected
+// Cek setiap 5 menit, jika status connected tapi client tidak responsif, reconnect
+// =======================================================
+let lastHealthCheck = Date.now();
+
+setInterval(async () => {
+    // Hanya cek jika status connected dan client ada
+    if (waStatus !== 'connected' || !client) return;
+
+    try {
+        // Coba ping WhatsApp dengan operasi ringan
+        const state = await client.getState();
+        if (state !== 'CONNECTED') {
+            console.warn(`[HEALTH CHECK] State WhatsApp: ${state} — memulai reconnect...`);
+            waStatus = 'disconnected';
+            isInitializing = false;
+            broadcast({ type: 'status', status: 'disconnected', reason: 'health_check_failed' });
+            initClient();
+        } else {
+            lastHealthCheck = Date.now();
+        }
+    } catch (err) {
+        console.warn(`[HEALTH CHECK] Gagal cek state: ${err.message} — memulai reconnect...`);
+        waStatus = 'disconnected';
+        isInitializing = false;
+        broadcast({ type: 'status', status: 'disconnected', reason: 'health_check_error' });
+        initClient();
+    }
+}, 5 * 60 * 1000); // setiap 5 menit
+
+// =======================================================
 // START
 // =======================================================
 server.listen(GATEWAY_PORT, () => {
