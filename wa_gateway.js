@@ -25,6 +25,7 @@ let waStatus = 'disconnected';
 let lastQrBase64 = null;
 let client = null;
 let isInitializing = false;
+let isBotReplying = false; // flag untuk membedakan pesan bot otomatis vs admin manual
 
 // Broadcast ke semua WS client yang aktif
 function broadcast(data) {
@@ -195,35 +196,57 @@ async function initClient() {
         try {
             const response = await axios.post(CORE_SERVICE_URL, {
                 from, text, userName, realNumber
-            });
+            }, { timeout: 25000 }); // timeout 25 detik
 
             if (response.data && response.data.reply) {
                 const replyData = response.data.reply;
-                if (Array.isArray(replyData)) {
-                    for (const txt of replyData) await client.sendMessage(from, txt, { linkPreview: false });
-                } else {
-                    await client.sendMessage(from, replyData, { linkPreview: false });
+                isBotReplying = true;
+                try {
+                    if (Array.isArray(replyData)) {
+                        for (const txt of replyData) await client.sendMessage(from, txt, { linkPreview: false });
+                    } else {
+                        await client.sendMessage(from, replyData, { linkPreview: false });
+                    }
+                } finally {
+                    isBotReplying = false;
                 }
                 console.log('✅ [BALASAN TERKIRIM]');
             }
         } catch (error) {
             console.error(`❌ [ERROR CORE] ${error.message}`);
+            
+            // Kirim pesan fallback ke user jika terjadi timeout atau error
+            try {
+                isBotReplying = true;
+                const fallbackMessage = error.code === 'ECONNABORTED' 
+                    ? '⏱️ Maaf, sistem sedang lambat. Silakan coba lagi dalam beberapa saat atau hubungi pustakawan.'
+                    : '❌ Maaf, terjadi gangguan sistem. Silakan coba lagi atau hubungi pustakawan.';
+                await client.sendMessage(from, fallbackMessage, { linkPreview: false });
+                isBotReplying = false;
+            } catch (sendError) {
+                console.error(`❌ Gagal kirim fallback: ${sendError.message}`);
+                isBotReplying = false;
+            }
         }
     });
 
     // MENDETEKSI ADMIN MEMBALAS LANGSUNG VIA HP
+    // Hanya trigger admin-sync jika pesan dikirim dari HP admin (bukan dari bot otomatis)
+    // Cara membedakan: pesan bot otomatis dikirim via client.sendMessage() di event 'message'
+    // kita set flag sementara untuk skip message_create saat bot sedang balas
     client.on('message_create', async msg => {
-        if (msg.fromMe) {
+        if (msg.fromMe && !isBotReplying) {
             const ignoredTexts = [
                 'Sesi Operator Berakhir',
                 'Menghubungkan ke Pustakawan',
                 'ALERT PUSTAKAWAN',
-                'Mode Pustakawan diakhiri'
+                'Mode Pustakawan diakhiri',
+                'Sesi Obrolan Selesai'
             ];
             if (ignoredTexts.some(t => msg.body.includes(t))) return;
 
             try {
-                await axios.post('http://127.0.0.1:3001/api/admin-sync', { targetNumber: msg.to });
+                await axios.post('http://127.0.0.1:3001/api/admin-sync', { targetNumber: msg.to }, { timeout: 5000 });
                 console.log(`[ADMIN SYNC] Pustakawan membalas manual ke: ${msg.to}`);
             } catch (error) {}
         }

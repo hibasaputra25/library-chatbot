@@ -45,16 +45,65 @@ const app = express();
 const port = process.env.PORT || 3003;
 
 // =======================================================
+// IN-MEMORY CACHE UNTUK PERFORMA
+// =======================================================
+// Cache untuk getUserMode dan getLinkedUser dengan TTL 5 menit
+const userModeCache = new Map(); // { phoneNumber: { mode: 'bot', expiry: timestamp } }
+const linkedUserCache = new Map(); // { nomor_wa: { data: {...}, expiry: timestamp } }
+const CACHE_TTL = 5 * 60 * 1000; // 5 menit dalam ms
+
+function getCachedUserMode(phoneNumber) {
+    const cached = userModeCache.get(phoneNumber);
+    if (cached && cached.expiry > Date.now()) {
+        return cached.mode;
+    }
+    return null;
+}
+
+function setCachedUserMode(phoneNumber, mode) {
+    userModeCache.set(phoneNumber, { mode, expiry: Date.now() + CACHE_TTL });
+}
+
+function invalidateCachedUserMode(phoneNumber) {
+    userModeCache.delete(phoneNumber);
+}
+
+function getCachedLinkedUser(nomor_wa) {
+    const cached = linkedUserCache.get(nomor_wa);
+    if (cached && cached.expiry > Date.now()) {
+        return cached.data;
+    }
+    return null;
+}
+
+function setCachedLinkedUser(nomor_wa, data) {
+    linkedUserCache.set(nomor_wa, { data, expiry: Date.now() + CACHE_TTL });
+}
+
+function invalidateCachedLinkedUser(nomor_wa) {
+    linkedUserCache.delete(nomor_wa);
+}
+
+// =======================================================
 // DB SQLITE: FUNGSI HUMAN MODE (CHAT PUSTAKAWAN)
 // =======================================================
 
 // Tabel dibuat otomatis oleh analytics_db.js (initTable) saat koneksi berhasil
 
-// 2. Fungsi untuk mengambil status user
+// 2. Fungsi untuk mengambil status user (dengan cache)
 async function getUserMode(phoneNumber) {
+    // Cek cache dulu
+    const cached = getCachedUserMode(phoneNumber);
+    if (cached !== null) {
+        return cached;
+    }
+    
+    // Cache miss, query DB
     try {
         const row = await analyticsDb.get(`SELECT mode FROM user_status WHERE phone_number = ?`, [phoneNumber]);
-        return row ? row.mode : 'bot';
+        const mode = row ? row.mode : 'bot';
+        setCachedUserMode(phoneNumber, mode);
+        return mode;
     } catch (err) {
         console.error("Error getUserMode:", err.message);
         return 'bot';
@@ -70,10 +119,33 @@ async function setUserMode(phoneNumber, mode) {
             VALUES (?, ?, NOW())
             ON CONFLICT (phone_number) DO UPDATE SET mode = EXCLUDED.mode, updated_at = NOW()
         `, [phoneNumber, mode]);
+        
+        // Update cache
+        setCachedUserMode(phoneNumber, mode);
     } catch (err) {
         console.error("Error setUserMode:", err.message);
     }
 }
+// =======================================================
+
+// Wrapper getLinkedUser dengan cache
+async function getLinkedUserCached(nomor_wa) {
+    const cached = getCachedLinkedUser(nomor_wa);
+    if (cached !== null) {
+        return cached;
+    }
+    // Cache miss, query DB
+    const data = await getLinkedUser(nomor_wa);
+    setCachedLinkedUser(nomor_wa, data || false); // simpan false jika tidak ditemukan
+    return data || null;
+}
+
+// Wrapper saveLinkedUser dengan invalidate cache
+async function saveLinkedUserCached(nomor_wa, identitas_id, nama, role, status_verifikasi) {
+    await saveLinkedUser(nomor_wa, identitas_id, nama, role, status_verifikasi);
+    invalidateCachedLinkedUser(nomor_wa); // invalidate agar next read ambil dari DB
+}
+
 // =======================================================
 
 // Izinkan pesan JSON hingga 1MB (default cuma 100kb)
@@ -997,7 +1069,7 @@ const createResponse = async (message, from, userName, finalNumber) => {
     // Skip query DB jika user sedang dalam proses onboarding (pasti belum terdaftar)
     const onboardingStates = ['waiting_for_role', 'waiting_for_nim', 'waiting_for_nidn', 'waiting_for_guest_name', 'waiting_for_dosen_manual_name', 'waiting_for_confirmation'];
     const isOnboarding = onboardingStates.includes(userSession.state);
-    const linkedUser = isOnboarding ? null : await getLinkedUser(finalNumber);
+    const linkedUser = isOnboarding ? null : await getLinkedUserCached(finalNumber);
 
     let rawName = userName;
     if (rawName && rawName.startsWith('+')) rawName = "Pemustaka";
@@ -1090,7 +1162,7 @@ const createResponse = async (message, from, userName, finalNumber) => {
                 userSession.state = "waiting_for_guest_name";
                 return { reply_message: "Baik, Anda akan melanjutkan sebagai *Tamu*.\n\nSilakan ketik *Nama Lengkap* Anda:" };
             }
-            await saveLinkedUser(finalNumber, userSession.temp_id, inputName, "dosen", "PENDING");
+            await saveLinkedUserCached(finalNumber, userSession.temp_id, inputName, "dosen", "PENDING");
             userSession.state = "main_menu";
             delete userSession.temp_id;
             return {
@@ -1109,7 +1181,7 @@ const createResponse = async (message, from, userName, finalNumber) => {
                 return { reply_message: "Proses dibatalkan. Silakan pilih peran:\n1. Mahasiswa\n2. Dosen/Tendik\n3. Tamu/Umum" };
             }
             const guestId = `GUEST_${finalNumber}`; 
-            await saveLinkedUser(finalNumber, guestId, guestName, "tamu", "GUEST_ONLY");
+            await saveLinkedUserCached(finalNumber, guestId, guestName, "tamu", "GUEST_ONLY");
             userSession.state = "main_menu";
             return {
                 reply_message: [
@@ -1123,7 +1195,7 @@ const createResponse = async (message, from, userName, finalNumber) => {
         if (userSession.state === "waiting_for_confirmation") {
             const jawaban = normalizedMessage;
             if (jawaban === 'ya') {
-                await saveLinkedUser(finalNumber, userSession.temp_id, userSession.temp_nama, userSession.temp_role, "VERIFIED");
+                await saveLinkedUserCached(finalNumber, userSession.temp_id, userSession.temp_nama, userSession.temp_role, "VERIFIED");
                 const namaUser = userSession.temp_nama;
                 
                 userSession.state = "main_menu";
