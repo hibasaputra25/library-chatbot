@@ -59,6 +59,15 @@ async function initClient() {
         return;
     }
 
+    // Safety: reset isInitializing setelah 3 menit jika masih stuck
+    const initTimeout = setTimeout(() => {
+        if (isInitializing) {
+            console.warn('[WA] isInitializing stuck selama 3 menit — direset paksa, mencoba ulang...');
+            isInitializing = false;
+            initClient();
+        }
+    }, 3 * 60 * 1000);
+
     // Destroy client lama jika ada
     if (client) {
         console.log('[WA] Menghancurkan client lama...');
@@ -138,6 +147,7 @@ async function initClient() {
         waStatus = 'disconnected';
         lastQrBase64 = null;
         isInitializing = false;
+        clearTimeout(initTimeout);
         broadcast({ type: 'status', status: 'disconnected', reason: 'auth_failure' });
     });
 
@@ -147,6 +157,7 @@ async function initClient() {
         waStatus = 'connected';
         lastQrBase64 = null;
         isInitializing = false;
+        clearTimeout(initTimeout);
         broadcast({ type: 'status', status: 'connected' });
     });
 
@@ -155,6 +166,7 @@ async function initClient() {
         waStatus = 'disconnected';
         lastQrBase64 = null;
         isInitializing = false;
+        clearTimeout(initTimeout);
         broadcast({ type: 'status', status: 'disconnected', reason });
         if (reason !== 'LOGOUT') {
             console.log('[WA] Auto-reconnect dalam 5 detik...');
