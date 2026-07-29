@@ -106,8 +106,12 @@ async function initClient() {
                 '--no-first-run',
                 '--no-zygote',
                 '--disable-gpu',
-                '--disable-extensions'
-            ]
+                '--disable-extensions',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--disable-blink-features=AutomationControlled'
+            ],
+            // Fix untuk Chromium Snap di systemd service
+            ignoreDefaultArgs: ['--disable-extensions']
         }
     });
 
