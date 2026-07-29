@@ -2379,7 +2379,17 @@ app.post("/api/end-human-mode", requireLogin, async (req, res) => {
 app.get("/api/active-human-sessions", requireLogin, async (req, res) => {
     try {
         const rows = await analyticsDb.all(
-            `SELECT phone_number, updated_at FROM user_status WHERE mode = 'human' ORDER BY updated_at DESC`
+            `SELECT 
+                us.phone_number,
+                us.updated_at,
+                lu.nama,
+                lu.identitas_id,
+                lu.role
+            FROM user_status us
+            LEFT JOIN linked_users lu 
+                ON regexp_replace(lu.nomor_wa, '@\\S+', '') = regexp_replace(us.phone_number, '@\\S+', '')
+            WHERE us.mode = 'human' 
+            ORDER BY us.updated_at DESC`
         );
         res.json(rows);
     } catch (err) {
