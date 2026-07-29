@@ -183,6 +183,13 @@ async function initClient() {
         if (msg.body === '') return;
 
         const from = msg.from;
+        
+        // Skip pesan dari grup (ID berakhiran @g.us)
+        if (from.endsWith('@g.us')) {
+            console.log(`[SKIP] Pesan dari grup diabaikan: ${from}`);
+            return;
+        }
+
         const userName = msg._data.notifyName || 'User';
         const text = msg.body;
 
