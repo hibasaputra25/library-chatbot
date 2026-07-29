@@ -2331,7 +2331,8 @@ app.post("/api/end-human-mode", requireLogin, async (req, res) => {
     if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber wajib diisi.' });
 
     try {
-        // Normalisasi nomor: strip suffix apapun (@c.us, @lid, dll) lalu tambahkan @c.us
+        // Gunakan nomor apa adanya jika sudah mengandung @
+        // Jangan konversi @lid ke @c.us karena WhatsApp Web JS butuh format asli
         const cleanNumber = phoneNumber.replace(/@\S+/g, '');
         const targetFrom = phoneNumber.includes('@') ? phoneNumber : `${cleanNumber}@c.us`;
         await setUserMode(targetFrom, 'bot');

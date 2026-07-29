@@ -1259,6 +1259,7 @@
                 tbody.innerHTML = '';
                 data.forEach(row => {
                     const nomor = row.phone_number.replace('@c.us', '').replace('@lid', '');
+                    const nomorFull = row.phone_number; // simpan format asli untuk end-session
                     const mulai = new Date(row.updated_at);
                     const durasi = Math.floor((Date.now() - mulai.getTime()) / 60000);
                     const durasiText = durasi < 60 ? `${durasi} menit` : `${Math.floor(durasi/60)} jam ${durasi%60} menit`;
@@ -1270,7 +1271,7 @@
                             <td class="px-6 py-4 text-sm text-gray-600">${mulai.toLocaleString('id-ID')}</td>
                             <td class="px-6 py-4 text-sm text-gray-600">${durasiText}</td>
                             <td class="px-6 py-4">
-                                <button onclick="endHumanSession('${nomor}')" class="bg-red-500 hover:bg-red-600 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition">
+                                <button onclick="endHumanSession('${nomorFull}')" class="bg-red-500 hover:bg-red-600 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition">
                                     Akhiri Sesi
                                 </button>
                             </td>

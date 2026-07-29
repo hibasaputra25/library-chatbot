@@ -332,13 +332,9 @@ app.post('/send-direct', async (req, res) => {
             return res.status(503).json({ error: 'WhatsApp belum terhubung.' });
         }
         
-        // Normalisasi nomor: pastikan format @c.us atau @g.us
-        let targetNumber = to;
-        if (!to.includes('@')) {
-            targetNumber = `${to}@c.us`;
-        } else if (to.endsWith('@lid')) {
-            targetNumber = to.replace('@lid', '@c.us');
-        }
+        // Gunakan nomor apa adanya — jangan konversi @lid ke @c.us
+        // WhatsApp Web JS versi baru menggunakan LID dan tidak bisa resolve @c.us
+        const targetNumber = to.includes('@') ? to : `${to}@c.us`;
         
         console.log(`[DEBUG] Mencoba mengirim ke: "${targetNumber}"`);
         await client.sendMessage(targetNumber, message, { linkPreview: false });
