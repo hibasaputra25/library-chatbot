@@ -90,19 +90,31 @@ function invalidateCachedLinkedUser(nomor_wa) {
 
 // Tabel dibuat otomatis oleh analytics_db.js (initTable) saat koneksi berhasil
 
+// Helper normalisasi nomor — strip semua suffix, simpan hanya angka@lid
+function normalizePhone(phoneNumber) {
+    const clean = phoneNumber.replace(/@\S+/g, '');
+    return `${clean}@lid`;
+}
+
 // 2. Fungsi untuk mengambil status user (dengan cache)
 async function getUserMode(phoneNumber) {
+    const normalized = normalizePhone(phoneNumber);
+    
     // Cek cache dulu
-    const cached = getCachedUserMode(phoneNumber);
+    const cached = getCachedUserMode(normalized);
     if (cached !== null) {
         return cached;
     }
     
-    // Cache miss, query DB
+    // Cache miss, query DB — cari semua varian nomor (normalisasi di query)
     try {
-        const row = await analyticsDb.get(`SELECT mode FROM user_status WHERE phone_number = ?`, [phoneNumber]);
+        const clean = phoneNumber.replace(/@\S+/g, '');
+        const row = await analyticsDb.get(
+            `SELECT mode FROM user_status WHERE regexp_replace(phone_number, '@\\S+', '') = $1 ORDER BY updated_at DESC LIMIT 1`,
+            [clean]
+        );
         const mode = row ? row.mode : 'bot';
-        setCachedUserMode(phoneNumber, mode);
+        setCachedUserMode(normalized, mode);
         return mode;
     } catch (err) {
         console.error("Error getUserMode:", err.message);
@@ -112,16 +124,23 @@ async function getUserMode(phoneNumber) {
 
 // 3. Fungsi untuk mengubah status user
 async function setUserMode(phoneNumber, mode) {
+    const normalized = normalizePhone(phoneNumber);
+    const clean = phoneNumber.replace(/@\S+/g, '');
     try {
-        // INSERT ... ON CONFLICT DO UPDATE (PostgreSQL, setara REPLACE INTO di SQLite)
+        // Update semua varian nomor yang ada di DB
+        await analyticsDb.run(
+            `UPDATE user_status SET mode = ?, updated_at = NOW() WHERE regexp_replace(phone_number, '@\\S+', '') = ?`,
+            [mode, clean]
+        );
+        // Jika belum ada, insert dengan format normalized
         await analyticsDb.run(`
             INSERT INTO user_status (phone_number, mode, updated_at)
             VALUES (?, ?, NOW())
             ON CONFLICT (phone_number) DO UPDATE SET mode = EXCLUDED.mode, updated_at = NOW()
-        `, [phoneNumber, mode]);
+        `, [normalized, mode]);
         
         // Update cache
-        setCachedUserMode(phoneNumber, mode);
+        setCachedUserMode(normalized, mode);
     } catch (err) {
         console.error("Error setUserMode:", err.message);
     }
