@@ -2331,7 +2331,9 @@ app.post("/api/end-human-mode", requireLogin, async (req, res) => {
     if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber wajib diisi.' });
 
     try {
-        const targetFrom = phoneNumber.includes('@c.us') ? phoneNumber : `${phoneNumber}@c.us`;
+        // Normalisasi nomor: strip suffix apapun (@c.us, @lid, dll) lalu tambahkan @c.us
+        const cleanNumber = phoneNumber.replace(/@\S+/g, '');
+        const targetFrom = phoneNumber.includes('@') ? phoneNumber : `${cleanNumber}@c.us`;
         await setUserMode(targetFrom, 'bot');
         stopActiveHumanTimer(targetFrom);
 

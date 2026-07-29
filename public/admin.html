@@ -1258,7 +1258,7 @@
 
                 tbody.innerHTML = '';
                 data.forEach(row => {
-                    const nomor = row.phone_number.replace('@c.us', '');
+                    const nomor = row.phone_number.replace('@c.us', '').replace('@lid', '');
                     const mulai = new Date(row.updated_at);
                     const durasi = Math.floor((Date.now() - mulai.getTime()) / 60000);
                     const durasiText = durasi < 60 ? `${durasi} menit` : `${Math.floor(durasi/60)} jam ${durasi%60} menit`;
