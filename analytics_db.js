@@ -94,9 +94,12 @@ async function initTable() {
                 updated_at   TIMESTAMPTZ DEFAULT NOW()
             )
         `);
-        // Tambah kolom updated_at jika tabel sudah ada tapi kolom belum ada (migrasi)
+        // Migrasi kolom jika tabel sudah ada
         await pool.query(`
             ALTER TABLE user_status ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()
+        `);
+        await pool.query(`
+            ALTER TABLE user_status ADD COLUMN IF NOT EXISTS real_number TEXT
         `);
         console.log('[PG] Tabel user_status siap.');
 

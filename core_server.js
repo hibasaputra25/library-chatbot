@@ -123,22 +123,30 @@ async function getUserMode(phoneNumber) {
 }
 
 // 3. Fungsi untuk mengubah status user
-async function setUserMode(phoneNumber, mode) {
+async function setUserMode(phoneNumber, mode, realNumber = null) {
     const normalized = normalizePhone(phoneNumber);
     const clean = phoneNumber.replace(/@\S+/g, '');
     try {
         // Update semua varian nomor yang ada di DB
-        await analyticsDb.run(
-            `UPDATE user_status SET mode = ?, updated_at = NOW() WHERE regexp_replace(phone_number, '@\\S+', '') = ?`,
-            [mode, clean]
-        );
+        if (realNumber) {
+            await analyticsDb.run(
+                `UPDATE user_status SET mode = ?, updated_at = NOW(), real_number = ? WHERE regexp_replace(phone_number, '@\\S+', '') = ?`,
+                [mode, realNumber, clean]
+            );
+        } else {
+            await analyticsDb.run(
+                `UPDATE user_status SET mode = ?, updated_at = NOW() WHERE regexp_replace(phone_number, '@\\S+', '') = ?`,
+                [mode, clean]
+            );
+        }
         // Jika belum ada, insert dengan format normalized
         await analyticsDb.run(`
-            INSERT INTO user_status (phone_number, mode, updated_at)
-            VALUES (?, ?, NOW())
-            ON CONFLICT (phone_number) DO UPDATE SET mode = EXCLUDED.mode, updated_at = NOW()
-        `, [normalized, mode]);
-        
+            INSERT INTO user_status (phone_number, mode, updated_at, real_number)
+            VALUES (?, ?, NOW(), ?)
+            ON CONFLICT (phone_number) DO UPDATE SET mode = EXCLUDED.mode, updated_at = NOW(),
+                real_number = COALESCE(EXCLUDED.real_number, user_status.real_number)
+        `, [normalized, mode, realNumber]);
+
         // Update cache
         setCachedUserMode(normalized, mode);
     } catch (err) {
@@ -2095,7 +2103,7 @@ app.post("/process-message", async (req, res) => {
 
             // Opsi 1: Kampus Meruya (Masuk ke Human Mode)
             if (cleanText === '1' || cleanText === 'meruya') {
-                await setUserMode(from, 'human');
+                await setUserMode(from, 'human', finalNumber);
 
                 // Kirim notifikasi "Alert" ke HP Admin Meruya
                 try {
@@ -2382,6 +2390,7 @@ app.get("/api/active-human-sessions", requireLogin, async (req, res) => {
             `SELECT 
                 us.phone_number,
                 us.updated_at,
+                us.real_number,
                 lu.nama,
                 lu.identitas_id,
                 lu.role

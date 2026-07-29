@@ -1259,9 +1259,9 @@
 
                 tbody.innerHTML = '';
                 data.forEach(row => {
-                    const nomor = row.phone_number.replace('@c.us', '').replace('@lid', '');
                     const nomorFull = row.phone_number; // simpan format asli untuk end-session
-                    const nomorAsli = row.identitas_id ? nomor : nomor; // nomor dari DB
+                    // Gunakan real_number jika tersedia, fallback ke phone_number strip @lid
+                    const nomor = row.real_number || row.phone_number.replace('@c.us', '').replace('@lid', '');
                     const nama = row.nama || '<span class="text-gray-400 italic">Tamu / Tidak Terdaftar</span>';
                     const identitas = row.identitas_id ? `<span class="text-xs text-gray-400">${row.identitas_id}</span>` : '';
                     const mulai = new Date(row.updated_at);
