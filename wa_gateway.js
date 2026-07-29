@@ -331,13 +331,23 @@ app.post('/send-direct', async (req, res) => {
         if (!client || waStatus !== 'connected') {
             return res.status(503).json({ error: 'WhatsApp belum terhubung.' });
         }
-        console.log(`[DEBUG] Mencoba mengirim ke: "${to}"`);
-        await client.sendMessage(to, message, { linkPreview: false });
-        console.log(`[GATEWAY] Berhasil mengirim pesan direct ke ${to}`);
+        
+        // Normalisasi nomor: pastikan format @c.us atau @g.us
+        let targetNumber = to;
+        if (!to.includes('@')) {
+            targetNumber = `${to}@c.us`;
+        } else if (to.endsWith('@lid')) {
+            targetNumber = to.replace('@lid', '@c.us');
+        }
+        
+        console.log(`[DEBUG] Mencoba mengirim ke: "${targetNumber}"`);
+        await client.sendMessage(targetNumber, message, { linkPreview: false });
+        console.log(`[GATEWAY] Berhasil mengirim pesan direct ke ${targetNumber}`);
         return res.status(200).json({ status: 'success', message: 'Pesan terkirim' });
     } catch (error) {
         console.error('[GATEWAY ERROR] Gagal mengirim pesan direct:', error.message);
-        return res.status(500).json({ error: 'Internal Server Error' });
+        console.error('[GATEWAY ERROR] Target:', req.body.to, '| Error detail:', error.stack?.split('\n')[0]);
+        return res.status(500).json({ error: 'Internal Server Error', detail: error.message });
     }
 });
 
