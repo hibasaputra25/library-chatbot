@@ -26,6 +26,7 @@ let lastQrBase64 = null;
 let client = null;
 let isInitializing = false;
 let isBotReplying = false; // flag untuk membedakan pesan bot otomatis vs admin manual
+let stuckRetryCount = 0; // counter untuk mendeteksi stuck berulang
 
 // Broadcast ke semua WS client yang aktif
 function broadcast(data) {
@@ -63,9 +64,18 @@ async function initClient() {
     // Safety: reset isInitializing setelah 3 menit jika masih stuck
     const initTimeout = setTimeout(() => {
         if (isInitializing) {
-            console.warn('[WA] isInitializing stuck selama 3 menit — direset paksa, mencoba ulang...');
+            stuckRetryCount++;
+            console.warn(`[WA] isInitializing stuck selama 3 menit — direset paksa, mencoba ulang... (${stuckRetryCount}x)`);
             isInitializing = false;
-            initClient();
+
+            // Jika stuck lebih dari 5 kali berturut-turut, paksa restart process
+            if (stuckRetryCount >= 5) {
+                console.error('[WA] Stuck berulang 5x — memaksa restart proses PM2...');
+                stuckRetryCount = 0;
+                process.exit(1); // PM2 akan auto-restart
+            } else {
+                initClient();
+            }
         }
     }, 3 * 60 * 1000);
 
@@ -159,6 +169,7 @@ async function initClient() {
         waStatus = 'connected';
         lastQrBase64 = null;
         isInitializing = false;
+        stuckRetryCount = 0; // reset counter stuck saat berhasil connect
         clearTimeout(initTimeout);
         broadcast({ type: 'status', status: 'connected' });
     });
@@ -185,6 +196,12 @@ async function initClient() {
         // Skip pesan dari grup (ID berakhiran @g.us)
         if (from.endsWith('@g.us')) {
             console.log(`[SKIP] Pesan dari grup diabaikan: ${from}`);
+            return;
+        }
+        
+        // Skip pesan dari WhatsApp Status
+        if (from === 'status@broadcast') {
+            console.log(`[SKIP] Pesan dari WhatsApp Status diabaikan`);
             return;
         }
 
