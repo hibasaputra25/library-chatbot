@@ -5,6 +5,21 @@
 # Deployment docs with credentials
 DEPLOYMENT_UBUNTU.md
 
+# Dokumen pribadi & tugas akhir (jangan di-push ke repo publik)
+*.docx
+*.pdf
+*.pptx
+TALK_41522010176_Hiba_Saputra.md
+MATERI_SIDANG_AKHIR.md
+REVISI_SLIDE_SEMPRO.md
+sempro_hiba.md
+presentasi_sempro.md
+gen_ppt.py
+
+# Data chat & session (sensitif)
+riwayat-chat-*.csv
+session-ses_*.md
+
 # Node.js
 node_modules/
 npm-debug.log*
